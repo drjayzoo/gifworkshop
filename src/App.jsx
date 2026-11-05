@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Film,
   Upload,
   Link2,
   Sparkles,
@@ -14,11 +13,11 @@ import {
   Download,
   CheckCircle2,
   AlertTriangle,
-  Sliders,
-  Maximize2,
   Eye,
   Trash2,
-  Wand2
+  Wand2,
+  Film,
+  Monitor
 } from 'lucide-react';
 
 // ============================================================================
@@ -52,7 +51,6 @@ class SimpleGIF89aEncoder {
     this.writeString('GIF89a');
     this.writeShort(this.width);
     this.writeShort(this.height);
-    // Global Color Table Flag = 1, Color Res = 7, Sort = 0, Size of GCT = 7 (256 colors)
     this.writeByte(0xf7);
     this.writeByte(0x00);
     this.writeByte(0x00);
@@ -74,21 +72,19 @@ class SimpleGIF89aEncoder {
     this.writeString('NETSCAPE2.0');
     this.writeByte(0x03);
     this.writeByte(0x01);
-    this.writeShort(0x0000); // 0 = loop forever
+    this.writeShort(0x0000);
     this.writeByte(0x00);
   }
 
   addFrame(rgbaData) {
-    // Graphic Control Extension
     this.writeByte(0x21);
     this.writeByte(0xf9);
     this.writeByte(0x04);
-    this.writeByte(0x04); // Disposal method 1: Do not dispose
+    this.writeByte(0x04);
     this.writeShort(this.delayCs);
     this.writeByte(0x00);
     this.writeByte(0x00);
 
-    // Image Descriptor
     this.writeByte(0x2c);
     this.writeShort(0);
     this.writeShort(0);
@@ -96,7 +92,6 @@ class SimpleGIF89aEncoder {
     this.writeShort(this.height);
     this.writeByte(0x00);
 
-    // Quantize RGBA to 3-3-2 palette index
     const numPixels = this.width * this.height;
     const indexed = new Uint8Array(numPixels);
     for (let i = 0; i < numPixels; i++) {
@@ -194,7 +189,7 @@ class SimpleGIF89aEncoder {
   }
 
   finish() {
-    this.writeByte(0x3b); // GIF Trailer
+    this.writeByte(0x3b);
     return new Blob([new Uint8Array(this.bytes)], { type: 'image/gif' });
   }
 }
@@ -319,9 +314,7 @@ const AdSenseLeaderboard = ({ positionLabel }) => {
           (window.adsbygoogle = window.adsbygoogle || []).push({});
           adInitialized.current = true;
         }
-      } catch (e) {
-        // AdSense push safely handled
-      }
+      } catch (e) {}
     }
   }, []);
 
@@ -389,23 +382,21 @@ function parseYouTubeVideoId(url) {
 }
 
 export default function App() {
-  // Clean defaults requested by user:
-  // - Blank URL input
-  // - Blank top/bottom meme text
-  // - Loop style: Normal ('forward')
-  // - Loop start: 0
+  // Video Source State ('empty' | 'file' | 'youtube')
   const [socialUrlInput, setSocialUrlInput] = useState('');
-  const [sourceType, setSourceType] = useState('procedural'); // 'procedural' | 'file' | 'social'
-  const [sourceTitle, setSourceTitle] = useState('Workshop Preview Stream (Upload a video or paste a link above)');
+  const [sourceType, setSourceType] = useState('empty');
+  const [sourceTitle, setSourceTitle] = useState('No video loaded yet');
+  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
+  const [ytSnapshots, setYtSnapshots] = useState([]);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [urlError, setUrlError] = useState('');
   const [statusBanner, setStatusBanner] = useState('');
 
   // Video & Trim Loop State
-  const [videoDuration, setVideoDuration] = useState(10);
+  const [videoDuration, setVideoDuration] = useState(15);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(4);
-  const [loopMode, setLoopMode] = useState('forward'); // 'forward' (Normal) | 'pingpong' (Boomerang) | 'reverse' (Reverse)
+  const [loopMode, setLoopMode] = useState('forward'); // 'forward' | 'pingpong' | 'reverse'
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [displayTime, setDisplayTime] = useState(0);
@@ -427,15 +418,16 @@ export default function App() {
   const [exportedGifSizeMB, setExportedGifSizeMB] = useState(null);
   const [showGifLightbox, setShowGifLightbox] = useState(false);
 
-  // Refs for smooth 60fps rendering without React re-render stutter
+  // Refs
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
+  const ytPlayerRef = useRef(null);
+  const ytContainerRef = useRef(null);
   const playheadRef = useRef(0);
   const directionRef = useRef(1);
   const lastRafTimeRef = useRef(performance.now());
   const typingTimerRef = useRef(null);
 
-  // Keep refs of settings for the 60fps animation loop
   const stateRef = useRef({
     sourceType,
     loopStart,
@@ -471,14 +463,12 @@ export default function App() {
   const estimatedSizeMB = ((exportWidth * (exportWidth * 9 / 16) * totalFrames * 0.32) / (1024 * 1024)).toFixed(2);
   const isOverLimit = parseFloat(estimatedSizeMB) > selectedPreset.maxMB;
 
-  // Handle Preset Selection
   const handleSelectPreset = (preset) => {
     setSelectedPreset(preset);
     setExportWidth(preset.width);
     setExportFps(preset.fps);
   };
 
-  // Auto-shrink settings to fit platform limit
   const handleAutoShrink = () => {
     setExportWidth(360);
     setExportFps(12);
@@ -487,7 +477,130 @@ export default function App() {
     }
   };
 
-  // Handle Local Video File Upload
+  // Preload CORS-safe YouTube keyframes for fallback GIF generation
+  const preloadYouTubeThumbnails = (ytId) => {
+    const urls = [
+      `https://i.ytimg.com/vi/${ytId}/hq1.jpg`,
+      `https://i.ytimg.com/vi/${ytId}/hq2.jpg`,
+      `https://i.ytimg.com/vi/${ytId}/hq3.jpg`,
+      `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
+    ];
+    const loaded = [];
+    urls.forEach((u) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        loaded.push(img);
+        setYtSnapshots([...loaded]);
+      };
+      img.src = u;
+    });
+  };
+
+  // Load Official YouTube IFrame API Player when sourceType === 'youtube'
+  useEffect(() => {
+    if (sourceType !== 'youtube' || !youtubeVideoId) return;
+
+    let isCancelled = false;
+
+    const loadYouTubeApi = () =>
+      new Promise((resolve) => {
+        if (window.YT && window.YT.Player) {
+          resolve(window.YT);
+          return;
+        }
+        const existing = document.getElementById('yt-iframe-api');
+        if (!existing) {
+          const tag = document.createElement('script');
+          tag.id = 'yt-iframe-api';
+          tag.src = 'https://www.youtube.com/iframe_api';
+          document.head.appendChild(tag);
+        }
+        const prevCallback = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          if (prevCallback) prevCallback();
+          resolve(window.YT);
+        };
+        const poll = setInterval(() => {
+          if (window.YT && window.YT.Player) {
+            clearInterval(poll);
+            resolve(window.YT);
+          }
+        }, 100);
+      });
+
+    loadYouTubeApi().then((YT) => {
+      if (isCancelled || !ytContainerRef.current) return;
+
+      if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (_) {}
+      }
+
+      ytContainerRef.current.innerHTML = '<div id="yt-active-player" class="w-full h-full"></div>';
+
+      ytPlayerRef.current = new YT.Player('yt-active-player', {
+        videoId: youtubeVideoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 1,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          mute: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: (event) => {
+            if (isCancelled) return;
+            const player = event.target;
+            const dur = Number(player.getDuration() || 0);
+            if (dur > 0) {
+              const roundedDur = Number(dur.toFixed(1));
+              setVideoDuration(roundedDur);
+              setLoopStart(0);
+              setLoopEnd(Math.min(5, roundedDur));
+            }
+            player.mute();
+            player.setPlaybackRate(stateRef.current.playbackSpeed);
+            player.seekTo(0, true);
+            player.playVideo();
+          },
+          onStateChange: (event) => {
+            if (isCancelled) return;
+            const player = event.target;
+            const dur = Number(player.getDuration() || 0);
+            if (dur > 0 && Math.abs(dur - videoDuration) > 1) {
+              setVideoDuration(Number(dur.toFixed(1)));
+            }
+          }
+        }
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [sourceType, youtubeVideoId]);
+
+  // Sync YouTube Player Playback Rate & Play/Pause state
+  useEffect(() => {
+    const player = ytPlayerRef.current;
+    if (sourceType !== 'youtube' || !player) return;
+    try {
+      if (player.setPlaybackRate) {
+        player.setPlaybackRate(playbackSpeed);
+      }
+      if (isPlaying && player.playVideo) {
+        player.playVideo();
+      } else if (!isPlaying && player.pauseVideo) {
+        player.pauseVideo();
+      }
+    } catch (_) {}
+  }, [playbackSpeed, isPlaying, sourceType]);
+
+  // Handle Local File Upload
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -498,6 +611,15 @@ export default function App() {
     setUrlError('');
     setStatusBanner('');
     setExportedGifUrl(null);
+    setYoutubeVideoId(null);
+
+    if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
+      try {
+        ytPlayerRef.current.destroy();
+      } catch (_) {}
+      ytPlayerRef.current = null;
+    }
+
     const objectUrl = URL.createObjectURL(file);
     const video = videoRef.current;
     if (video) {
@@ -514,12 +636,13 @@ export default function App() {
         setSourceType('file');
         setSourceTitle(file.name);
         setIsPlaying(true);
+        setStatusBanner(`Loaded video file "${file.name}" (${dur}s)`);
         video.play().catch(() => {});
       };
     }
   };
 
-  // Resolve social video links (Direct MP4, Cloudflare /api/stream endpoint, or public CORS stream resolvers)
+  // Load Social Link or Direct MP4
   const handleLoadSocialUrl = async (e) => {
     if (e) e.preventDefault();
     const rawUrl = socialUrlInput.trim();
@@ -530,22 +653,14 @@ export default function App() {
 
     setIsFetchingUrl(true);
     setUrlError('');
-    setStatusBanner('Elves are fetching the video stream...');
+    setStatusBanner('Elves are loading your video...');
     setExportedGifUrl(null);
 
     try {
-      // 1. Check if it is already a direct .mp4 / .webm link
-      if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(rawUrl)) {
-        await attachVideoStreamUrl(rawUrl, 'Direct Video Stream');
-        setIsFetchingUrl(false);
-        setStatusBanner('Direct video loaded!');
-        return;
-      }
-
-      // 2. Try our Cloudflare Pages Function (/api/stream?url=...)
       const ytId = parseYouTubeVideoId(rawUrl);
-      let resolvedTitle = ytId ? `YouTube Video (${ytId})` : 'Social Video Clip';
+      let resolvedTitle = ytId ? `YouTube Video (${ytId})` : 'Loaded Video Clip';
 
+      // Fetch real video title via oEmbed
       try {
         const oembedRes = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(rawUrl)}`);
         if (oembedRes.ok) {
@@ -554,77 +669,72 @@ export default function App() {
         }
       } catch (_) {}
 
-      // Try Cloudflare Pages Function proxy if deployed
+      // 1. Try our Cloudflare Pages Function (/api/stream?url=...) for direct CORS MP4 stream
       try {
         const cfRes = await fetch(`/api/stream?url=${encodeURIComponent(rawUrl)}`);
         if (cfRes.ok) {
           const data = await cfRes.json();
           if (data.streamUrl) {
-            await attachVideoStreamUrl(data.streamUrl, data.title || resolvedTitle);
-            setIsFetchingUrl(false);
-            setStatusBanner(`Loaded "${data.title || resolvedTitle}"!`);
-            return;
+            const loadedOk = await tryAttachDirectStream(data.streamUrl, data.title || resolvedTitle, data.duration);
+            if (loadedOk) {
+              setIsFetchingUrl(false);
+              setStatusBanner(`Loaded "${data.title || resolvedTitle}"!`);
+              return;
+            }
           }
         }
       } catch (_) {}
 
-      // 3. If YouTube ID detected, try public Piped / Invidious CORS MP4 stream APIs
-      if (ytId) {
-        const pipedApis = [
-          `https://pipedapi.kavin.rocks/streams/${ytId}`,
-          `https://pipedapi.tokhmi.xyz/streams/${ytId}`,
-          `https://pipedapi.moomoo.me/streams/${ytId}`
-        ];
-
-        for (const apiUrl of pipedApis) {
-          try {
-            const resp = await fetch(apiUrl);
-            if (resp.ok) {
-              const info = await resp.json();
-              const mp4Stream = (info.videoStreams || []).find(
-                (s) => s.format === 'MPEG_4' && !s.videoOnly
-              ) || (info.videoStreams || []).find((s) => s.format === 'MPEG_4');
-
-              if (mp4Stream && mp4Stream.url) {
-                await attachVideoStreamUrl(mp4Stream.url, info.title || resolvedTitle);
-                setIsFetchingUrl(false);
-                setStatusBanner(`Loaded "${info.title || resolvedTitle}"!`);
-                return;
-              }
-            }
-          } catch (_) {}
+      // 2. If direct .mp4/.webm link, try loading directly
+      if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(rawUrl)) {
+        const loadedOk = await tryAttachDirectStream(rawUrl, resolvedTitle);
+        if (loadedOk) {
+          setIsFetchingUrl(false);
+          setStatusBanner(`Loaded direct video stream!`);
+          return;
         }
       }
 
-      // 4. Fallback: High-framerate interactive canvas stream so the user can still test trimming & GIF export
-      setSourceTitle(resolvedTitle);
-      setSourceType('procedural');
-      setVideoDuration(12);
-      setLoopStart(0);
-      setLoopEnd(4);
-      playheadRef.current = 0;
-      setStatusBanner(
-        `Loaded preview for "${resolvedTitle}". Note: For protected social links, you can also upload the MP4 file directly.`
+      // 3. If it's a YouTube URL, activate the Real Live YouTube Player Stage!
+      // It loads the actual video on your live gifworkshop.pages.dev site, reads the real clip duration, and loops between Loop Start & Loop End!
+      if (ytId) {
+        preloadYouTubeThumbnails(ytId);
+        setYoutubeVideoId(ytId);
+        setSourceTitle(resolvedTitle);
+        setSourceType('youtube');
+        setLoopStart(0);
+        setLoopEnd(5);
+        setIsPlaying(true);
+        setStatusBanner(`Loaded "${resolvedTitle}"! Adjust Loop Start & End below to trim your clip.`);
+        setIsFetchingUrl(false);
+        return;
+      }
+
+      setUrlError(
+        'Could not resolve a direct stream from that link. Try a YouTube link, direct .mp4 URL, or upload the video file from your device.'
       );
     } catch (err) {
-      setUrlError('Could not load that video link directly. Try uploading the video file (.MP4/.MOV) directly!');
+      setUrlError('Could not load that video link. Please try uploading the video file (.MP4/.MOV) directly.');
     } finally {
       setIsFetchingUrl(false);
     }
   };
 
-  const attachVideoStreamUrl = (streamUrl, title) => {
-    return new Promise((resolve, reject) => {
+  const tryAttachDirectStream = (streamUrl, title, fallbackDur) => {
+    return new Promise((resolve) => {
       const video = videoRef.current;
-      if (!video) return reject(new Error('No video element'));
+      if (!video) return resolve(false);
 
-      video.crossOrigin = 'anonymous';
-      video.src = streamUrl;
-      video.load();
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, 6500);
 
       const onLoaded = () => {
         cleanup();
-        const dur = Math.max(1, Number((video.duration || 10).toFixed(1)));
+        const rawDur = video.duration && isFinite(video.duration) ? video.duration : (fallbackDur || 15);
+        const dur = Math.max(1, Number(rawDur.toFixed(1)));
+        setYoutubeVideoId(null);
         setVideoDuration(dur);
         setLoopStart(0);
         setLoopEnd(Math.min(5, dur));
@@ -634,32 +744,41 @@ export default function App() {
         setSourceTitle(title);
         setIsPlaying(true);
         video.play().catch(() => {});
-        resolve();
+        resolve(true);
       };
 
       const onError = () => {
         cleanup();
-        reject(new Error('Stream failed to load'));
+        resolve(false);
       };
 
       const cleanup = () => {
+        clearTimeout(timeout);
         video.removeEventListener('loadedmetadata', onLoaded);
         video.removeEventListener('error', onError);
       };
 
+      video.crossOrigin = 'anonymous';
+      video.src = streamUrl;
+      video.load();
       video.addEventListener('loadedmetadata', onLoaded);
       video.addEventListener('error', onError);
     });
   };
 
-  // Immediate reaction when user adjusts Loop Start or Loop End sliders
+  // Immediate reaction when user drags Loop Start or Loop End
   const handleLoopStartChange = (newStartVal) => {
     const clampedStart = Math.max(0, Math.min(newStartVal, loopEnd - 0.5));
     setLoopStart(clampedStart);
     playheadRef.current = clampedStart;
     setDisplayTime(clampedStart);
-    if (videoRef.current && stateRef.current.sourceType === 'file') {
+
+    if (sourceType === 'file' && videoRef.current) {
       videoRef.current.currentTime = clampedStart;
+    } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
+      try {
+        ytPlayerRef.current.seekTo(clampedStart, true);
+      } catch (_) {}
     }
   };
 
@@ -668,75 +787,14 @@ export default function App() {
     setLoopEnd(clampedEnd);
     playheadRef.current = clampedEnd;
     setDisplayTime(clampedEnd);
-    if (videoRef.current && stateRef.current.sourceType === 'file') {
+
+    if (sourceType === 'file' && videoRef.current) {
       videoRef.current.currentTime = clampedEnd;
+    } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
+      try {
+        ytPlayerRef.current.seekTo(Math.max(loopStart, clampedEnd - 0.3), true);
+      } catch (_) {}
     }
-  };
-
-  // Draw procedural animated workshop scene when no external file is loaded
-  const drawProceduralScene = (ctx, width, height, timestampSec) => {
-    // Rich animated gradient sky & moving elements so trim timestamps are visually distinct
-    const grad = ctx.createLinearGradient(0, 0, width, height);
-    grad.addColorStop(0, '#064e3b');
-    grad.addColorStop(0.5, '#0f766e');
-    grad.addColorStop(1, '#1e1b4b');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, width, height);
-
-    // Moving sun / moon orb across the 0s -> videoDuration timeline
-    const progress = (timestampSec % videoDuration) / Math.max(1, videoDuration);
-    const orbX = width * 0.12 + progress * (width * 0.76);
-    const orbY = height * 0.45 - Math.sin(progress * Math.PI) * (height * 0.22);
-
-    const orbGrad = ctx.createRadialGradient(orbX, orbY, 4, orbX, orbY, 55);
-    orbGrad.addColorStop(0, '#fde047');
-    orbGrad.addColorStop(0.5, '#f59e0b');
-    orbGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
-    ctx.fillStyle = orbGrad;
-    ctx.beginPath();
-    ctx.arc(orbX, orbY, 55, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Rolling hills with parallax
-    ctx.fillStyle = '#065f46';
-    ctx.beginPath();
-    ctx.moveTo(0, height);
-    for (let x = 0; x <= width; x += 20) {
-      const y = height * 0.72 + Math.sin(x * 0.015 + timestampSec * 2.2) * 16;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(width, height);
-    ctx.closePath();
-    ctx.fill();
-
-    // Bouncing Workshop Gift / Film Clapper on screen
-    const boxX = width * 0.15 + ((timestampSec * 95) % (width * 0.7));
-    const boxY = height * 0.65 - Math.abs(Math.sin(timestampSec * 5)) * 45;
-
-    ctx.save();
-    ctx.translate(boxX, boxY);
-    ctx.rotate(Math.sin(timestampSec * 4) * 0.2);
-    ctx.fillStyle = '#fbbf24';
-    ctx.strokeStyle = '#022c22';
-    ctx.lineWidth = 3;
-    ctx.fillRect(-26, -22, 52, 44);
-    ctx.strokeRect(-26, -22, 52, 44);
-    ctx.fillStyle = '#022c22';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('GIF', 0, 5);
-    ctx.restore();
-
-    // Live timestamp watermark so trimming is crystal clear
-    ctx.fillStyle = 'rgba(2, 44, 34, 0.75)';
-    ctx.fillRect(14, 14, 155, 32);
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(14, 14, 155, 32);
-    ctx.fillStyle = '#fde68a';
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`TIME: ${timestampSec.toFixed(2)}s`, 24, 35);
   };
 
   // Draw Impact Meme Text Overlay onto Canvas
@@ -768,8 +826,8 @@ export default function App() {
     ctx.restore();
   };
 
-  // Composite a single frame at the current timestamp
-  const renderFrameToCanvas = (targetCanvas, timestampSec) => {
+  // Render frame onto targetCanvas
+  const renderFrameToCanvas = (targetCanvas, timestampSec, customVideoEl = null) => {
     if (!targetCanvas) return;
     const ctx = targetCanvas.getContext('2d');
     const width = targetCanvas.width;
@@ -778,9 +836,8 @@ export default function App() {
 
     ctx.clearRect(0, 0, width, height);
 
-    const video = videoRef.current;
-    if (st.sourceType === 'file' && video && video.readyState >= 2) {
-      // Draw letterboxed/fitted video frame
+    const video = customVideoEl || videoRef.current;
+    if ((customVideoEl || st.sourceType === 'file') && video && video.readyState >= 2) {
       const vw = video.videoWidth || 640;
       const vh = video.videoHeight || 360;
       const scale = Math.min(width / vw, height / vh);
@@ -792,8 +849,16 @@ export default function App() {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
-    } else {
-      drawProceduralScene(ctx, width, height, timestampSec);
+    } else if (ytSnapshots.length > 0) {
+      // Draw actual YouTube video storyboard frames without any fake sun or GIF box
+      const progress = Math.max(0, (timestampSec - st.loopStart) / Math.max(0.5, st.loopEnd - st.loopStart));
+      const frameIdx = Math.floor(progress * ytSnapshots.length) % ytSnapshots.length;
+      const img = ytSnapshots[frameIdx];
+      if (img) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+      }
     }
 
     drawMemeTextOverlay(
@@ -807,7 +872,7 @@ export default function App() {
     );
   };
 
-  // 60FPS RequestAnimationFrame Loop (No 60fps React state updates)
+  // 60FPS Animation Loop for Both Local/Direct Video AND Live YouTube IFrame Player
   useEffect(() => {
     let rafId;
     let lastUiUpdate = 0;
@@ -818,10 +883,9 @@ export default function App() {
       const st = stateRef.current;
       const video = videoRef.current;
 
-      if (st.isPlaying) {
-        if (st.sourceType === 'file' && video && video.readyState >= 2) {
+      if (st.sourceType === 'file' && video && video.readyState >= 2) {
+        if (st.isPlaying) {
           video.playbackRate = st.playbackSpeed;
-
           if (st.loopMode === 'forward') {
             if (video.paused) video.play().catch(() => {});
             if (video.currentTime >= st.loopEnd || video.currentTime < st.loopStart) {
@@ -829,7 +893,6 @@ export default function App() {
             }
             playheadRef.current = video.currentTime;
           } else {
-            // For Reverse or Ping-Pong, step currentTime smoothly
             if (!video.paused) video.pause();
             const dir = st.loopMode === 'reverse' ? -1 : directionRef.current;
             let nextT = playheadRef.current + dt * st.playbackSpeed * dir;
@@ -850,38 +913,30 @@ export default function App() {
               video.currentTime = nextT;
             }
           }
-        } else {
-          // Procedural clock
-          const dir =
-            st.loopMode === 'reverse'
-              ? -1
-              : st.loopMode === 'pingpong'
-              ? directionRef.current
-              : 1;
-          let nextT = playheadRef.current + dt * st.playbackSpeed * dir;
-
-          if (st.loopMode === 'forward') {
-            if (nextT >= st.loopEnd || nextT < st.loopStart) nextT = st.loopStart;
-          } else if (st.loopMode === 'reverse') {
-            if (nextT <= st.loopStart || nextT > st.loopEnd) nextT = st.loopEnd;
-          } else if (st.loopMode === 'pingpong') {
-            if (nextT >= st.loopEnd) {
-              nextT = st.loopEnd;
-              directionRef.current = -1;
-            } else if (nextT <= st.loopStart) {
-              nextT = st.loopStart;
-              directionRef.current = 1;
+        } else if (!video.paused) {
+          video.pause();
+        }
+        renderFrameToCanvas(canvasRef.current, playheadRef.current);
+      } else if (st.sourceType === 'youtube' && ytPlayerRef.current) {
+        // Synchronize real YouTube IFrame Player with Loop Start & Loop End
+        try {
+          const yt = ytPlayerRef.current;
+          if (yt.getCurrentTime) {
+            const cur = Number(yt.getCurrentTime() || 0);
+            const dur = Number(yt.getDuration() || 0);
+            if (dur > 0 && Math.abs(dur - videoDuration) > 1) {
+              setVideoDuration(Number(dur.toFixed(1)));
+            }
+            if (st.isPlaying && (cur >= st.loopEnd || cur < st.loopStart - 0.25)) {
+              yt.seekTo(st.loopStart, true);
+              playheadRef.current = st.loopStart;
+            } else {
+              playheadRef.current = cur;
             }
           }
-          playheadRef.current = nextT;
-        }
-      } else if (st.sourceType === 'file' && video && !video.paused) {
-        video.pause();
+        } catch (_) {}
       }
 
-      renderFrameToCanvas(canvasRef.current, playheadRef.current);
-
-      // Update UI timestamp readout at ~10fps instead of 60fps so React never stutters
       if (now - lastUiUpdate > 100) {
         setDisplayTime(Number(playheadRef.current.toFixed(2)));
         lastUiUpdate = now;
@@ -892,11 +947,108 @@ export default function App() {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, []);
+  }, [videoDuration]);
 
-  // Real Multi-Frame Animated GIF89a Export
-  const handleCreateAnimatedGif = async () => {
+  // Live Tab Capture for YouTube IFrame Mode (Captures real playing video frames)
+  const handleCaptureLiveYouTubeGif = async () => {
     if (isEncoding) return;
+    setUrlError('');
+
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', frameRate: exportFps },
+        audio: false,
+        preferCurrentTab: true
+      });
+
+      setIsEncoding(true);
+      setEncodeProgress(0);
+      setExportedGifUrl(null);
+
+      const tempVideo = document.createElement('video');
+      tempVideo.srcObject = displayStream;
+      tempVideo.muted = true;
+      await tempVideo.play();
+
+      // Crop exactly to the YouTube stage container on screen
+      const stageEl = ytContainerRef.current;
+      const rect = stageEl ? stageEl.getBoundingClientRect() : null;
+      const dpr = window.devicePixelRatio || 1;
+
+      const outW = exportWidth;
+      const outH = Math.round((exportWidth * 9) / 16);
+      const offscreen = document.createElement('canvas');
+      offscreen.width = outW;
+      offscreen.height = outH;
+      const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+
+      const frameDelayMs = Math.round(1000 / exportFps);
+      const encoder = new SimpleGIF89aEncoder(outW, outH, frameDelayMs);
+
+      // Seek YouTube player to loopStart and start playing
+      if (ytPlayerRef.current?.seekTo) {
+        ytPlayerRef.current.seekTo(loopStart, true);
+        ytPlayerRef.current.playVideo();
+      }
+
+      const captureCount = Math.max(8, Math.min(45, Math.round(((loopEnd - loopStart) / playbackSpeed) * exportFps)));
+      const capturedBitmaps = [];
+
+      for (let i = 0; i < captureCount; i++) {
+        offCtx.fillStyle = '#000000';
+        offCtx.fillRect(0, 0, outW, outH);
+
+        if (rect && tempVideo.videoWidth > 0) {
+          const scaleX = tempVideo.videoWidth / window.innerWidth;
+          const scaleY = tempVideo.videoHeight / window.innerHeight;
+          const sx = Math.max(0, rect.left * scaleX);
+          const sy = Math.max(0, rect.top * scaleY);
+          const sw = Math.min(tempVideo.videoWidth - sx, rect.width * scaleX);
+          const sh = Math.min(tempVideo.videoHeight - sy, rect.height * scaleY);
+          offCtx.drawImage(tempVideo, sx, sy, sw, sh, 0, 0, outW, outH);
+        } else {
+          offCtx.drawImage(tempVideo, 0, 0, outW, outH);
+        }
+
+        drawMemeTextOverlay(offCtx, outW, outH, topText, bottomText, fontSize, textColor);
+        const frameData = offCtx.getImageData(0, 0, outW, outH).data;
+        capturedBitmaps.push(new Uint8ClampedArray(frameData));
+
+        setEncodeProgress(Math.round(((i + 1) / captureCount) * 85));
+        await new Promise((r) => setTimeout(r, frameDelayMs));
+      }
+
+      displayStream.getTracks().forEach((t) => t.stop());
+
+      let finalFrames = [...capturedBitmaps];
+      if (loopMode === 'reverse') {
+        finalFrames.reverse();
+      } else if (loopMode === 'pingpong' && capturedBitmaps.length > 2) {
+        finalFrames = [...capturedBitmaps, ...capturedBitmaps.slice(1, -1).reverse()];
+      }
+
+      finalFrames.forEach((rgba) => encoder.addFrame(rgba));
+      setEncodeProgress(100);
+
+      const gifBlob = encoder.finish();
+      const gifUrl = URL.createObjectURL(gifBlob);
+      setExportedGifUrl(gifUrl);
+      setExportedGifSizeMB((gifBlob.size / (1024 * 1024)).toFixed(2));
+    } catch (err) {
+      // If user cancels screen share dialog, fallback gracefully to YouTube keyframe GIF synthesis
+      await handleDirectCanvasGifExport();
+    } finally {
+      setIsEncoding(false);
+    }
+  };
+
+  // Direct Canvas Multi-Frame GIF89a Export
+  const handleDirectCanvasGifExport = async () => {
+    if (sourceType === 'empty') {
+      setUrlError('Please load a video link or upload a video file in Step 1 first!');
+      return;
+    }
+
     setIsEncoding(true);
     setEncodeProgress(0);
     setExportedGifUrl(null);
@@ -912,7 +1064,6 @@ export default function App() {
       const frameDelayMs = Math.round(1000 / exportFps);
       const encoder = new SimpleGIF89aEncoder(outW, outH, frameDelayMs);
 
-      // Build exact list of timestamps for the loop
       const forwardCount = Math.max(4, Math.min(60, Math.round(((loopEnd - loopStart) / playbackSpeed) * exportFps)));
       const timestamps = [];
 
@@ -979,7 +1130,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-emerald-950 text-amber-50 flex flex-col">
-      {/* Hidden HTML5 Video Element for 60fps Frame Decoding */}
+      {/* Hidden HTML5 Video Element for Direct MP4 Frame Decoding */}
       <video ref={videoRef} className="hidden" playsInline muted crossOrigin="anonymous" />
 
       {/* Top Workshop Header */}
@@ -1025,7 +1176,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Social Link Input Form (Blank by Default) */}
+          {/* Social Link Input Form */}
           <form onSubmit={handleLoadSocialUrl} className="flex flex-col sm:flex-row gap-2.5 mb-3">
             <div className="relative flex-1">
               <Link2 className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -1052,7 +1203,7 @@ export default function App() {
               className="px-5 py-2.5 rounded-xl font-bold text-sm bg-amber-400 hover:bg-amber-300 text-emerald-950 shadow-md transition flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
             >
               <Wand2 className="w-4 h-4" />
-              {isFetchingUrl ? 'Fetching...' : 'Load Link'}
+              {isFetchingUrl ? 'Loading...' : 'Load Link'}
             </button>
           </form>
 
@@ -1083,13 +1234,17 @@ export default function App() {
           )}
         </section>
 
-        {/* LIVE VIDEO & MEME PREVIEW STAGE */}
+        {/* LIVE VIDEO & MEME PREVIEW STAGE (NO FAKE SUN OR BOUNCING GIF BOX!) */}
         <section className="bg-emerald-900/70 border-2 border-amber-400/50 rounded-2xl p-3 sm:p-4 shadow-2xl">
           <div className="flex items-center justify-between mb-2 px-1">
             <div className="flex items-center gap-2 truncate">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  sourceType === 'empty' ? 'bg-amber-400/50' : 'bg-emerald-400 animate-pulse'
+                }`}
+              />
               <span className="text-xs font-bold text-amber-200 truncate">
-                Live Preview: {sourceTitle}
+                {sourceType === 'empty' ? 'Video Stage: Waiting for Video' : `Live Preview: ${sourceTitle}`}
               </span>
             </div>
             <span className="text-[11px] font-mono text-emerald-300 shrink-0">
@@ -1098,14 +1253,57 @@ export default function App() {
             </span>
           </div>
 
-          {/* 16:9 Live HTML5 Canvas Stage */}
-          <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-emerald-800 shadow-inner">
-            <canvas
-              ref={canvasRef}
-              width={640}
-              height={360}
-              className="w-full h-full object-contain"
-            />
+          {/* 16:9 Stage: Empty Waiting Card OR Real HTML5 Canvas OR Live YouTube Player */}
+          <div className="relative w-full aspect-video bg-emerald-950 rounded-xl overflow-hidden border border-emerald-800 shadow-inner flex items-center justify-center">
+            {sourceType === 'empty' && (
+              <div className="flex flex-col items-center justify-center text-center p-6 max-w-md">
+                <AnimatedLogoElf isWorking={false} />
+                <h3 className="mt-3 text-base sm:text-lg font-bold text-amber-200">
+                  Ready to Forge Your Animated GIF!
+                </h3>
+                <p className="mt-1 text-xs text-emerald-300/90 leading-relaxed">
+                  Paste a YouTube or video URL above and click <strong className="text-amber-300">Load Link</strong>, or upload an MP4/MOV video file from your computer or phone to start trimming.
+                </p>
+              </div>
+            )}
+
+            {sourceType === 'file' && (
+              <canvas
+                ref={canvasRef}
+                width={640}
+                height={360}
+                className="w-full h-full object-contain bg-black"
+              />
+            )}
+
+            {sourceType === 'youtube' && (
+              <div className="relative w-full h-full bg-black">
+                <div ref={ytContainerRef} className="w-full h-full" />
+                {/* Live Impact Meme Text Overlay rendered directly on top of the playing YouTube video */}
+                {(topText || bottomText) && (
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 sm:p-4 select-none">
+                    <div
+                      className="text-center font-black meme-stroke break-words leading-tight"
+                      style={{
+                        color: textColor,
+                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`
+                      }}
+                    >
+                      {topText.toUpperCase()}
+                    </div>
+                    <div
+                      className="text-center font-black meme-stroke break-words leading-tight"
+                      style={{
+                        color: textColor,
+                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`
+                      }}
+                    >
+                      {bottomText.toUpperCase()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Playback Controls & Live Loop Time Bar */}
@@ -1113,22 +1311,26 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                disabled={sourceType === 'empty'}
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs flex items-center gap-1.5 shadow"
+                className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs flex items-center gap-1.5 shadow disabled:opacity-40"
               >
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                 {isPlaying ? 'Pause' : 'Play'}
               </button>
               <button
                 type="button"
+                disabled={sourceType === 'empty'}
                 onClick={() => {
                   playheadRef.current = loopStart;
                   setDisplayTime(loopStart);
-                  if (videoRef.current && sourceType === 'file') {
+                  if (sourceType === 'file' && videoRef.current) {
                     videoRef.current.currentTime = loopStart;
+                  } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
+                    ytPlayerRef.current.seekTo(loopStart, true);
                   }
                 }}
-                className="px-3 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-800 text-amber-200 border border-emerald-700 text-xs font-semibold flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-800 text-amber-200 border border-emerald-700 text-xs font-semibold flex items-center gap-1 disabled:opacity-40"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Restart Loop
@@ -1136,7 +1338,7 @@ export default function App() {
             </div>
 
             <div className="px-3 py-1 rounded-lg bg-emerald-950/90 border border-amber-500/30 text-xs font-mono text-amber-300">
-              {displayTime.toFixed(2)}s / Loop {loopStart.toFixed(1)}s–{loopEnd.toFixed(1)}s
+              {displayTime.toFixed(2)}s / Loop {loopStart.toFixed(1)}s–{loopEnd.toFixed(1)}s (Total {videoDuration.toFixed(1)}s)
             </div>
           </div>
 
@@ -1145,14 +1347,14 @@ export default function App() {
             <div
               className="absolute top-0 bottom-0 bg-amber-400/25 border-x-2 border-amber-400"
               style={{
-                left: `${(loopStart / videoDuration) * 100}%`,
-                width: `${Math.max(2, ((loopEnd - loopStart) / videoDuration) * 100)}%`
+                left: `${(loopStart / Math.max(1, videoDuration)) * 100}%`,
+                width: `${Math.max(2, ((loopEnd - loopStart) / Math.max(1, videoDuration)) * 100)}%`
               }}
             />
             <div
               className="absolute top-0 bottom-0 w-1 bg-amber-300 shadow"
               style={{
-                left: `${Math.min(99, Math.max(0, (displayTime / videoDuration) * 100))}%`
+                left: `${Math.min(99, Math.max(0, (displayTime / Math.max(1, videoDuration)) * 100))}%`
               }}
             />
           </div>
@@ -1267,7 +1469,7 @@ export default function App() {
         {/* MIDDLE LEADERBOARD AD */}
         <AdSenseLeaderboard positionLabel="Middle Banner" />
 
-        {/* STEP 3: MEME TEXT OVERLAY (DEFAULTS TO BLANK) */}
+        {/* STEP 3: MEME TEXT OVERLAY */}
         <section className="bg-emerald-900/50 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             <PainterElfIllustration isTyping={isTypingText} />
@@ -1414,18 +1616,43 @@ export default function App() {
             )}
           </div>
 
-          {/* Big Forge Animated GIF Button */}
-          <button
-            type="button"
-            onClick={handleCreateAnimatedGif}
-            disabled={isEncoding}
-            className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-60"
-          >
-            <Sparkles className="w-5 h-5" />
-            {isEncoding
-              ? `Elves are Forging Animated GIF... (${encodeProgress}%)`
-              : 'Create & Download Animated GIF'}
-          </button>
+          {/* Export Buttons */}
+          {sourceType === 'youtube' ? (
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={handleCaptureLiveYouTubeGif}
+                disabled={isEncoding}
+                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-60"
+              >
+                <Monitor className="w-5 h-5" />
+                {isEncoding
+                  ? `Elves are Recording & Forging GIF... (${encodeProgress}%)`
+                  : 'Record Live Video Loop as Animated GIF'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectCanvasGifExport}
+                disabled={isEncoding}
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-amber-200 border border-emerald-700 font-bold text-xs transition flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Instant Storyboard GIF Export (No Screen Permission Needed)
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleDirectCanvasGifExport}
+              disabled={isEncoding || sourceType === 'empty'}
+              className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-50"
+            >
+              <Sparkles className="w-5 h-5" />
+              {isEncoding
+                ? `Elves are Forging Animated GIF... (${encodeProgress}%)`
+                : 'Create & Download Animated GIF'}
+            </button>
+          )}
 
           {/* Export Result Card */}
           {exportedGifUrl && (
@@ -1439,7 +1666,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Live Animated <img> Tag Rendering the Actual Output GIF */}
               <div className="bg-black rounded-xl overflow-hidden border border-emerald-800 mb-3 flex items-center justify-center max-h-72">
                 <img
                   src={exportedGifUrl}

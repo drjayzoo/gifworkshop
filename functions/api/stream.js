@@ -3,6 +3,7 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get('url');
   const proxyStreamUrl = url.searchParams.get('proxy');
+  const proxyImgUrl = url.searchParams.get('img');
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -15,11 +16,34 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // MODE 1: Binary MP4 Stream Proxy (so HTML5 <video> + <canvas> never gets CORS-tainted)
+  // MODE 1: CORS Image Proxy for Storyboard/Keyframes
+  if (proxyImgUrl) {
+    try {
+      const imgResp = await fetch(proxyImgUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      const respHeaders = new Headers(corsHeaders);
+      respHeaders.set('Content-Type', imgResp.headers.get('Content-Type') || 'image/jpeg');
+      respHeaders.set('Cache-Control', 'public, max-age=3600');
+      return new Response(imgResp.body, {
+        status: imgResp.status,
+        headers: respHeaders
+      });
+    } catch (e) {
+      return new Response('Image proxy failed', { status: 502, headers: corsHeaders });
+    }
+  }
+
+  // MODE 2: Binary MP4 Stream Proxy (so HTML5 <video> + <canvas> never gets CORS-tainted)
   if (proxyStreamUrl) {
     try {
       const fetchHeaders = new Headers();
-      fetchHeaders.set('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+      fetchHeaders.set(
+        'User-Agent',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      );
       if (request.headers.has('Range')) {
         fetchHeaders.set('Range', request.headers.get('Range'));
       }
@@ -51,7 +75,7 @@ export async function onRequest(context) {
     }
   }
 
-  // MODE 2: Resolve Social URL (YouTube, TikTok, X, Instagram, etc.) -> Direct MP4 Stream
+  // MODE 3: Resolve Social URL (YouTube, TikTok, X, Instagram, etc.) -> Direct MP4 Stream
   if (!targetUrl) {
     return new Response(JSON.stringify({ error: 'Missing url parameter' }), {
       status: 400,
@@ -59,7 +83,7 @@ export async function onRequest(context) {
     });
   }
 
-  // If direct MP4/WebM link, return proxied URL immediately
+  // Direct MP4/WebM link
   if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(targetUrl)) {
     return new Response(
       JSON.stringify({
@@ -71,11 +95,93 @@ export async function onRequest(context) {
     );
   }
 
-  // Extract YouTube ID if present
-  const ytMatch = targetUrl.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i);
+  const ytMatch = targetUrl.match(
+    /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i
+  );
   const ytId = ytMatch ? ytMatch[1] : null;
 
-  // 1. Try Cobalt v10 / v7 multi-platform social video extractor instances
+  // 1. Direct YouTube InnerTube API Extraction (IOS & ANDROID clients)
+  if (ytId) {
+    const clients = [
+      {
+        clientName: 'IOS',
+        clientVersion: '19.29.1',
+        deviceMake: 'Apple',
+        deviceModel: 'iPhone16,2',
+        osName: 'iPhone',
+        osVersion: '17.5.1.21F90',
+        userAgent: 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)'
+      },
+      {
+        clientName: 'ANDROID',
+        clientVersion: '19.29.37',
+        androidSdkVersion: 34,
+        osName: 'Android',
+        osVersion: '14',
+        userAgent: 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
+      }
+    ];
+
+    for (const c of clients) {
+      try {
+        const ytRes = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': c.userAgent
+          },
+          body: JSON.stringify({
+            videoId: ytId,
+            context: {
+              client: {
+                clientName: c.clientName,
+                clientVersion: c.clientVersion,
+                deviceMake: c.deviceMake,
+                deviceModel: c.deviceModel,
+                osName: c.osName,
+                osVersion: c.osVersion,
+                androidSdkVersion: c.androidSdkVersion,
+                hl: 'en',
+                gl: 'US'
+              }
+            },
+            contentCheckOk: true,
+            racyCheckOk: true
+          })
+        });
+
+        if (ytRes.ok) {
+          const data = await ytRes.json();
+          const formats = [
+            ...(data?.streamingData?.formats || []),
+            ...(data?.streamingData?.adaptiveFormats || [])
+          ];
+          // Prefer combined mp4 or video mp4 <= 720p for fast GIF creation
+          const mp4 =
+            formats.find(
+              (f) => f.url && f.mimeType && f.mimeType.includes('video/mp4') && f.height && f.height <= 480
+            ) ||
+            formats.find(
+              (f) => f.url && f.mimeType && f.mimeType.includes('video/mp4')
+            );
+
+          if (mp4 && mp4.url) {
+            return new Response(
+              JSON.stringify({
+                streamUrl: `/api/stream?proxy=${encodeURIComponent(mp4.url)}`,
+                rawStreamUrl: mp4.url,
+                title: data?.videoDetails?.title || `YouTube (${ytId})`,
+                duration: Number(data?.videoDetails?.lengthSeconds || 0) || null
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 2. Try Cobalt social video extractor instances
   const cobaltInstances = [
     { url: 'https://api.cobalt.tools/', v: 10 },
     { url: 'https://cobalt-api.kwiatekmiki.com/', v: 10 },
@@ -85,14 +191,15 @@ export async function onRequest(context) {
 
   for (const inst of cobaltInstances) {
     try {
-      const bodyPayload = inst.v === 10
-        ? { url: targetUrl, videoQuality: '480', downloadMode: 'auto' }
-        : { url: targetUrl, vQuality: '480' };
+      const bodyPayload =
+        inst.v === 10
+          ? { url: targetUrl, videoQuality: '480', downloadMode: 'auto' }
+          : { url: targetUrl, vQuality: '480' };
 
       const resp = await fetch(inst.url, {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
         },
@@ -116,7 +223,7 @@ export async function onRequest(context) {
     } catch (_) {}
   }
 
-  // 2. If YouTube video, try Invidious & Piped API pools from server-side (no browser CORS!)
+  // 3. Try Invidious & Piped API pools
   if (ytId) {
     const invidiousApis = [
       `https://inv.tux.pizza/api/v1/videos/${ytId}`,
@@ -129,12 +236,12 @@ export async function onRequest(context) {
 
     for (const apiUrl of invidiousApis) {
       try {
-        const resp = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        const resp = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (resp.ok) {
           const info = await resp.json();
-          const fmt = (info.formatStreams || []).find((s) => (s.container === 'mp4' || (s.type && s.type.includes('mp4'))) && s.url);
+          const fmt = (info.formatStreams || []).find(
+            (s) => (s.container === 'mp4' || (s.type && s.type.includes('mp4'))) && s.url
+          );
           if (fmt && fmt.url) {
             return new Response(
               JSON.stringify({
@@ -159,9 +266,7 @@ export async function onRequest(context) {
 
     for (const apiUrl of pipedApis) {
       try {
-        const resp = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        const resp = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (resp.ok) {
           const info = await resp.json();
           const mp4Stream =

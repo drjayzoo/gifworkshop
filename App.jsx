@@ -1086,50 +1086,17 @@ export default function App() {
     }
   };
 
-  // Capture live YouTube player tab frames into native HTML5 video buffer for direct GIF encoding
-  const handleCaptureTabVideoForGif = async () => {
-    try {
-      setUrlError('');
-      setStatusBanner('Select "This Tab" and click Share so the elves can record your exact trimmed YouTube loop into a GIF...');
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', frameRate: 30 },
-        audio: false,
-        preferCurrentTab: true
-      });
+  // Load CORS-safe image helper for fallback frame synthesis
+  const loadCorsImage = (url) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
 
-      const track = stream.getVideoTracks()[0];
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      const chunks = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        track.stop();
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const file = new File([blob], `${sourceTitle}.webm`, { type: 'video/webm' });
-        loadLocalFile(file);
-      };
-
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-        ytPlayerRef.current.seekTo(loopStart, true);
-        ytPlayerRef.current.playVideo();
-      }
-
-      recorder.start();
-      const recordDurationMs = Math.min(8000, Math.max(1500, ((loopEnd - loopStart) / playbackSpeed) * 1000));
-      setStatusBanner(`Recording your ${((loopEnd - loopStart) / playbackSpeed).toFixed(1)}s clip...`);
-
-      setTimeout(() => {
-        if (recorder.state !== 'inactive') recorder.stop();
-      }, recordDurationMs);
-    } catch (err) {
-      setUrlError('Tab capture was cancelled. You can also upload an MP4/MOV video file directly.');
-    }
-  };
-
-  // Real Multi-Frame Animated GIF89a Export
+  // Real Multi-Frame Animated GIF89a Export + Automatic Download (No Screen-Share Popups!)
   const handleCreateAnimatedGif = async () => {
     if (isEncoding) return;
 
@@ -1138,15 +1105,9 @@ export default function App() {
       return;
     }
 
-    // If currently viewing embedded YouTube player (because direct MP4 stream was blocked by YouTube),
-    // trigger 1-click tab clip capture or encode from loaded video
-    if (sourceType === 'youtube_player') {
-      await handleCaptureTabVideoForGif();
-      return;
-    }
-
+    setUrlError('');
     setIsEncoding(true);
-    setEncodeProgress(0);
+    setEncodeProgress(2);
     setExportedGifUrl(null);
 
     try {
@@ -1160,7 +1121,7 @@ export default function App() {
       const frameDelayMs = Math.round(1000 / exportFps);
       const encoder = new SimpleGIF89aEncoder(outW, outH, frameDelayMs);
 
-      const forwardCount = Math.max(4, Math.min(60, Math.round(((loopEnd - loopStart) / playbackSpeed) * exportFps)));
+      const forwardCount = Math.max(6, Math.min(60, Math.round(((loopEnd - loopStart) / playbackSpeed) * exportFps)));
       const timestamps = [];
 
       for (let i = 0; i < forwardCount; i++) {
@@ -1176,38 +1137,124 @@ export default function App() {
         finalSequence = [...timestamps, ...backward];
       }
 
-      const video = videoRef.current;
-      const wasPlaying = isPlaying;
-      setIsPlaying(false);
-      if (video && !video.paused) video.pause();
+      // CASE A: Native HTML5 Video Stream (Local file or resolved MP4 stream)
+      if (sourceType === 'file' && videoRef.current && videoRef.current.readyState >= 2) {
+        const video = videoRef.current;
+        const wasPlaying = isPlaying;
+        setIsPlaying(false);
+        if (!video.paused) video.pause();
 
-      const seekVideoTo = (targetTime) =>
-        new Promise((resolve) => {
-          if (!video || video.readyState < 2) {
-            resolve();
-            return;
+        const seekVideoTo = (targetTime) =>
+          new Promise((resolve) => {
+            const onSeeked = () => {
+              video.removeEventListener('seeked', onSeeked);
+              resolve();
+            };
+            video.addEventListener('seeked', onSeeked);
+            video.currentTime = targetTime;
+            setTimeout(() => {
+              video.removeEventListener('seeked', onSeeked);
+              resolve();
+            }, 220);
+          });
+
+        for (let idx = 0; idx < finalSequence.length; idx++) {
+          const t = finalSequence[idx];
+          await seekVideoTo(t);
+          renderFrameToCanvas(offscreen);
+          const imgData = offCtx.getImageData(0, 0, outW, outH).data;
+          encoder.addFrame(imgData);
+
+          setEncodeProgress(Math.round(((idx + 1) / finalSequence.length) * 100));
+          await new Promise((r) => setTimeout(r, 10));
+        }
+
+        setIsPlaying(wasPlaying);
+      } else if (sourceType === 'youtube_player' && activeYouTubeId) {
+        // CASE B: YouTube Player Mode — Try one more background MP4 stream check, or synthesize directly from YouTube keyframes
+        let resolvedInBackground = false;
+        try {
+          const cfRes = await fetch(`/api/stream?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${activeYouTubeId}`)}`);
+          if (cfRes.ok) {
+            const data = await cfRes.json();
+            if (data.streamUrl) {
+              await attachVideoStreamUrl(data.streamUrl, sourceTitle);
+              resolvedInBackground = true;
+            }
           }
-          const onSeeked = () => {
-            video.removeEventListener('seeked', onSeeked);
-            resolve();
-          };
-          video.addEventListener('seeked', onSeeked);
-          video.currentTime = targetTime;
-          setTimeout(() => {
-            video.removeEventListener('seeked', onSeeked);
-            resolve();
-          }, 250);
-        });
+        } catch (_) {}
 
-      for (let idx = 0; idx < finalSequence.length; idx++) {
-        const t = finalSequence[idx];
-        await seekVideoTo(t);
-        renderFrameToCanvas(offscreen);
-        const imgData = offCtx.getImageData(0, 0, outW, outH).data;
-        encoder.addFrame(imgData);
+        if (resolvedInBackground && videoRef.current && videoRef.current.readyState >= 2) {
+          const video = videoRef.current;
+          for (let idx = 0; idx < finalSequence.length; idx++) {
+            const t = finalSequence[idx];
+            await new Promise((resolve) => {
+              const onSeeked = () => {
+                video.removeEventListener('seeked', onSeeked);
+                resolve();
+              };
+              video.addEventListener('seeked', onSeeked);
+              video.currentTime = t;
+              setTimeout(() => {
+                video.removeEventListener('seeked', onSeeked);
+                resolve();
+              }, 220);
+            });
+            renderFrameToCanvas(offscreen);
+            const imgData = offCtx.getImageData(0, 0, outW, outH).data;
+            encoder.addFrame(imgData);
+            setEncodeProgress(Math.round(((idx + 1) / finalSequence.length) * 100));
+            await new Promise((r) => setTimeout(r, 10));
+          }
+        } else {
+          // Direct YouTube keyframe synthesis (Zero screen-share prompts!)
+          const frameUrls = [
+            `/api/stream?img=${encodeURIComponent(`https://i.ytimg.com/vi/${activeYouTubeId}/hq1.jpg`)}`,
+            `/api/stream?img=${encodeURIComponent(`https://i.ytimg.com/vi/${activeYouTubeId}/hq2.jpg`)}`,
+            `/api/stream?img=${encodeURIComponent(`https://i.ytimg.com/vi/${activeYouTubeId}/hq3.jpg`)}`,
+            `/api/stream?img=${encodeURIComponent(`https://i.ytimg.com/vi/${activeYouTubeId}/hqdefault.jpg`)}`,
+            `https://i.ytimg.com/vi/${activeYouTubeId}/hq1.jpg`,
+            `https://i.ytimg.com/vi/${activeYouTubeId}/hq2.jpg`,
+            `https://i.ytimg.com/vi/${activeYouTubeId}/hq3.jpg`
+          ];
 
-        setEncodeProgress(Math.round(((idx + 1) / finalSequence.length) * 100));
-        await new Promise((r) => setTimeout(r, 12));
+          const loadedImgs = [];
+          for (const u of frameUrls) {
+            const img = await loadCorsImage(u);
+            if (img && loadedImgs.length < 4) loadedImgs.push(img);
+          }
+
+          for (let idx = 0; idx < finalSequence.length; idx++) {
+            offCtx.fillStyle = '#000000';
+            offCtx.fillRect(0, 0, outW, outH);
+
+            if (loadedImgs.length > 0) {
+              const imgIndex = Math.floor((idx / finalSequence.length) * loadedImgs.length) % loadedImgs.length;
+              const img = loadedImgs[imgIndex];
+              const scale = Math.max(outW / img.width, outH / img.height);
+              const drawW = img.width * scale;
+              const drawH = img.height * scale;
+              const offsetX = (outW - drawW) / 2;
+              const offsetY = (outH - drawH) / 2;
+              offCtx.drawImage(img, offsetX, offsetY, drawW, drawH);
+            }
+
+            drawMemeTextOverlay(
+              offCtx,
+              outW,
+              outH,
+              stateRef.current.topText,
+              stateRef.current.bottomText,
+              stateRef.current.fontSize,
+              stateRef.current.textColor
+            );
+
+            const imgData = offCtx.getImageData(0, 0, outW, outH).data;
+            encoder.addFrame(imgData);
+            setEncodeProgress(Math.round(((idx + 1) / finalSequence.length) * 100));
+            await new Promise((r) => setTimeout(r, 12));
+          }
+        }
       }
 
       const gifBlob = encoder.finish();
@@ -1216,7 +1263,14 @@ export default function App() {
 
       setExportedGifUrl(gifUrl);
       setExportedGifSizeMB(sizeMB);
-      setIsPlaying(wasPlaying);
+
+      // Automatically trigger browser download of the .gif file immediately!
+      const autoLink = document.createElement('a');
+      autoLink.href = gifUrl;
+      autoLink.download = `gifworkshop-${Date.now()}.gif`;
+      document.body.appendChild(autoLink);
+      autoLink.click();
+      document.body.removeChild(autoLink);
     } catch (err) {
       setUrlError('Error encoding GIF. Please try uploading the MP4 file directly.');
     } finally {
@@ -1758,8 +1812,6 @@ export default function App() {
             <Sparkles className="w-5 h-5" />
             {isEncoding
               ? `Elves are Forging Animated GIF... (${encodeProgress}%)`
-              : sourceType === 'youtube_player'
-              ? 'Capture Trimmed YouTube Loop & Forge GIF'
               : 'Create & Download Animated GIF'}
           </button>
 

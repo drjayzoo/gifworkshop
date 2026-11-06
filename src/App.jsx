@@ -16,8 +16,7 @@ import {
   Eye,
   Trash2,
   Wand2,
-  Film,
-  Monitor
+  Video
 } from 'lucide-react';
 
 // ============================================================================
@@ -55,7 +54,6 @@ class SimpleGIF89aEncoder {
     this.writeByte(0x00);
     this.writeByte(0x00);
 
-    // 256-color 3-3-2 RGB Global Palette
     for (let i = 0; i < 256; i++) {
       const r = ((i >> 5) & 0x07) * 36;
       const g = ((i >> 2) & 0x07) * 36;
@@ -65,7 +63,6 @@ class SimpleGIF89aEncoder {
       this.writeByte(Math.min(255, b));
     }
 
-    // Netscape 2.0 Infinite Loop Application Extension
     this.writeByte(0x21);
     this.writeByte(0xff);
     this.writeByte(0x0b);
@@ -301,6 +298,190 @@ const PressElfIllustration = ({ isEncoding = false }) => (
   </svg>
 );
 
+
+const GrumpyComputerElfOverlay = ({ isVisible, statusText }) => {
+  const [turnedAround, setTurnedAround] = useState(false);
+
+  useEffect(() => {
+    if (!isVisible) {
+      setTurnedAround(false);
+      return;
+    }
+    // Toggle between typing furiously and turning to the camera to complain
+    const t1 = setTimeout(() => setTurnedAround(true), 1400);
+    const interval = setInterval(() => {
+      setTurnedAround((prev) => !prev);
+    }, 3800);
+    return () => {
+      clearTimeout(t1);
+      clearInterval(interval);
+    };
+  }, [isVisible]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-emerald-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-emerald-900 border-4 border-amber-400 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl flex flex-col items-center text-center relative overflow-hidden">
+        {/* Comic Speech Bubble */}
+        <div
+          className={`mb-4 px-5 py-3 rounded-2xl bg-amber-300 text-emerald-950 font-black text-base sm:text-lg shadow-lg border-2 border-emerald-950 relative transition-all duration-300 ${
+            turnedAround ? 'scale-105 opacity-100' : 'scale-95 opacity-90'
+          }`}
+        >
+          “Elf off, I’m going as fast as I can!”
+          <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-amber-300 border-r-2 border-b-2 border-emerald-950 rotate-45" />
+        </div>
+
+        {/* Animated Cartoon SVG of Elf at Computer */}
+        <div className="w-56 h-48 relative flex items-center justify-center">
+          <svg viewBox="0 0 220 170" className="w-full h-full overflow-visible">
+            {/* Desk */}
+            <rect x="15" y="132" width="190" height="14" rx="4" fill="#78350f" stroke="#451a03" strokeWidth="2.5" />
+            <rect x="30" y="146" width="14" height="22" fill="#451a03" />
+            <rect x="176" y="146" width="14" height="22" fill="#451a03" />
+
+            {/* Coffee Mug ("#1 ELF") */}
+            <rect x="28" y="110" width="18" height="22" rx="3" fill="#ef4444" stroke="#064e3b" strokeWidth="2" />
+            <path d="M 28 115 C 20 115 20 127 28 127" fill="none" stroke="#ef4444" strokeWidth="3" />
+            <path d="M 33 104 Q 30 96 36 90" fill="none" stroke="#fde68a" strokeWidth="1.5" opacity="0.7" className="animate-pulse" />
+            <path d="M 40 105 Q 43 97 38 91" fill="none" stroke="#fde68a" strokeWidth="1.5" opacity="0.7" className="animate-pulse" />
+
+            {/* Retro CRT / Workshop Monitor on Right */}
+            <g>
+              {/* Monitor Stand */}
+              <rect x="148" y="120" width="20" height="12" fill="#334155" stroke="#0f172a" strokeWidth="2" />
+              <path d="M 138 132 L 178 132" stroke="#0f172a" strokeWidth="4" strokeLinecap="round" />
+              {/* Monitor Body */}
+              <rect x="122" y="62" width="72" height="58" rx="8" fill="#1e293b" stroke="#fbbf24" strokeWidth="2.5" />
+              {/* Glowing Screen */}
+              <rect x="129" y="69" width="58" height="44" rx="4" fill="#064e3b" />
+              {/* Screen Code Lines / Progress */}
+              <rect x="134" y="76" width="32" height="4" rx="2" fill="#34d399" className="animate-pulse" />
+              <rect x="134" y="84" width="46" height="4" rx="2" fill="#fbbf24" />
+              <rect x="134" y="92" width="24" height="4" rx="2" fill="#38bdf8" />
+              <rect x="134" y="101" width="48" height="6" rx="3" fill="#022c22" />
+              <rect x="135" y="102" width="34" height="4" rx="2" fill="#10b981" className="animate-pulse" />
+            </g>
+
+            {/* Keyboard */}
+            <polygon points="102,132 142,132 136,124 108,124" fill="#475569" stroke="#0f172a" strokeWidth="2" />
+
+            {/* Sweat Drops when typing */}
+            {!turnedAround && (
+              <g className="animate-bounce">
+                <path d="M 55 52 Q 51 60 55 63 Q 59 60 55 52 Z" fill="#38bdf8" />
+                <path d="M 112 48 Q 108 56 112 59 Q 116 56 112 48 Z" fill="#38bdf8" />
+              </g>
+            )}
+
+            {/* Elf Body / Tunic */}
+            <path d="M 62 132 L 70 92 L 102 92 L 110 132 Z" fill="#10b981" stroke="#064e3b" strokeWidth="2.5" />
+            {/*Zigzag Elf Collar*/}
+            <polygon points="70,92 78,102 86,92 94,102 102,92" fill="#ef4444" stroke="#064e3b" strokeWidth="1.5" />
+
+            {/* Elf Arms: Typing furiously vs. Hand on Hip + Pointing at Camera */}
+            {!turnedAround ? (
+              <g>
+                <path
+                  d="M 96 100 Q 112 115 118 125"
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  className="animate-bounce"
+                  style={{ animationDuration: '0.18s' }}
+                />
+                <circle cx="119" cy="126" r="5" fill="#fde68a" stroke="#b45309" strokeWidth="1.5" />
+                <path
+                  d="M 78 102 Q 98 118 110 126"
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  className="animate-bounce"
+                  style={{ animationDuration: '0.22s' }}
+                />
+                <circle cx="111" cy="127" r="5" fill="#fde68a" stroke="#b45309" strokeWidth="1.5" />
+              </g>
+            ) : (
+              <g>
+                {/* Left hand on hip */}
+                <path d="M 72 98 L 56 112 L 68 122" fill="none" stroke="#10b981" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="68" cy="122" r="5" fill="#fde68a" stroke="#b45309" strokeWidth="1.5" />
+                {/* Right hand raised in sassy gesture */}
+                <path d="M 98 98 Q 114 90 116 76" fill="none" stroke="#10b981" strokeWidth="8" strokeLinecap="round" />
+                <circle cx="116" cy="74" r="6" fill="#fde68a" stroke="#b45309" strokeWidth="1.5" />
+              </g>
+            )}
+
+            {/* Elf Head */}
+            <g
+              style={{
+                transform: turnedAround ? 'translate(0px, 0px)' : 'translate(6px, 2px)',
+                transition: 'transform 0.25s ease-in-out'
+              }}
+            >
+              {/* Pointy Ears */}
+              <path d="M 64 68 L 48 58 L 66 78 Z" fill="#fde68a" stroke="#b45309" strokeWidth="2" />
+              <path d="M 108 68 L 124 58 L 106 78 Z" fill="#fde68a" stroke="#b45309" strokeWidth="2" />
+
+              {/* Head Circle */}
+              <circle cx="86" cy="70" r="22" fill="#fde68a" stroke="#b45309" strokeWidth="2.5" />
+
+              {/* Hat */}
+              <path d="M 62 56 Q 82 18 118 28 Q 106 46 110 56 Z" fill="#10b981" stroke="#064e3b" strokeWidth="2.5" />
+              <path d="M 61 56 Q 86 62 111 56" fill="none" stroke="#ef4444" strokeWidth="6" strokeLinecap="round" />
+              <circle cx="119" cy="28" r="6" fill="#fbbf24" stroke="#b45309" strokeWidth="1.8" className="animate-bounce" />
+
+              {turnedAround ? (
+                /* Turned to Camera: Grumpy / Sassy Eyebrows & Open Mouth */
+                <g>
+                  {/* Furrowed Grumpy Eyebrows */}
+                  <line x1="72" y1="60" x2="83" y2="65" stroke="#064e3b" strokeWidth="3" strokeLinecap="round" />
+                  <line x1="100" y1="60" x2="89" y2="65" stroke="#064e3b" strokeWidth="3" strokeLinecap="round" />
+                  {/* Eyes looking dead at camera */}
+                  <circle cx="78" cy="68" r="3.2" fill="#064e3b" />
+                  <circle cx="94" cy="68" r="3.2" fill="#064e3b" />
+                  <circle cx="77" cy="67" r="1" fill="#ffffff" />
+                  <circle cx="93" cy="67" r="1" fill="#ffffff" />
+                  {/* Rosy Cheeks */}
+                  <circle cx="70" cy="74" r="4" fill="#f43f5e" opacity="0.45" />
+                  <circle cx="102" cy="74" r="4" fill="#f43f5e" opacity="0.45" />
+                  {/* Talking / Sassy Mouth */}
+                  <rect x="79" y="76" width="14" height="8" rx="4" fill="#881337" stroke="#064e3b" strokeWidth="1.8" />
+                  <path d="M 82 82 Q 86 80 90 82" fill="none" stroke="#fb7185" strokeWidth="2.5" strokeLinecap="round" />
+                </g>
+              ) : (
+                /* Looking at Monitor on the Right: Focused Side-Profile Eyes */
+                <g>
+                  <line x1="82" y1="61" x2="91" y2="63" stroke="#064e3b" strokeWidth="2.5" strokeLinecap="round" />
+                  <line x1="95" y1="61" x2="104" y2="63" stroke="#064e3b" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="88" cy="67" r="3" fill="#064e3b" />
+                  <circle cx="100" cy="67" r="3" fill="#064e3b" />
+                  <path d="M 88 78 Q 94 75 99 78" fill="none" stroke="#064e3b" strokeWidth="2.5" strokeLinecap="round" />
+                </g>
+              )}
+            </g>
+          </svg>
+        </div>
+
+        {/* Status Text & Animated Progress Bar */}
+        <h3 className="text-lg sm:text-xl font-extrabold text-amber-300 mt-1">
+          Working on Your Video...
+        </h3>
+        <p className="text-xs sm:text-sm text-emerald-200 mt-1 max-w-xs leading-relaxed">
+          {statusText || 'Longer videos take an extra moment for the elves to haul through the workshop!'}
+        </p>
+
+        <div className="w-full h-3 bg-emerald-950 rounded-full overflow-hidden border border-amber-400/50 mt-4 p-0.5">
+          <div className="h-full w-2/3 bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 rounded-full animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ============================================================================
 // GOOGLE ADSENSE HORIZONTAL LEADERBOARD COMPONENT
 // ============================================================================
@@ -382,12 +563,11 @@ function parseYouTubeVideoId(url) {
 }
 
 export default function App() {
-  // Video Source State ('empty' | 'file' | 'youtube')
   const [socialUrlInput, setSocialUrlInput] = useState('');
+  // 'empty' | 'file' | 'youtube_player'
   const [sourceType, setSourceType] = useState('empty');
   const [sourceTitle, setSourceTitle] = useState('No video loaded yet');
-  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
-  const [ytSnapshots, setYtSnapshots] = useState([]);
+  const [activeYouTubeId, setActiveYouTubeId] = useState(null);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [urlError, setUrlError] = useState('');
   const [statusBanner, setStatusBanner] = useState('');
@@ -396,7 +576,7 @@ export default function App() {
   const [videoDuration, setVideoDuration] = useState(15);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(4);
-  const [loopMode, setLoopMode] = useState('forward'); // 'forward' | 'pingpong' | 'reverse'
+  const [loopMode, setLoopMode] = useState('forward');
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [displayTime, setDisplayTime] = useState(0);
@@ -456,6 +636,81 @@ export default function App() {
     };
   }, [sourceType, loopStart, loopEnd, loopMode, playbackSpeed, isPlaying, topText, bottomText, fontSize, textColor]);
 
+  // Load Official YouTube IFrame API script for real YouTube playback, duration & trim looping on live domain
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+  }, []);
+
+  // Initialize or update YouTube IFrame API Player when activeYouTubeId is set
+  useEffect(() => {
+    if (sourceType !== 'youtube_player' || !activeYouTubeId) return;
+
+    let checkTimer;
+    const initYtPlayer = () => {
+      if (!window.YT || !window.YT.Player) {
+        checkTimer = setTimeout(initYtPlayer, 150);
+        return;
+      }
+
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (_) {}
+      }
+
+      ytPlayerRef.current = new window.YT.Player('yt-live-player', {
+        videoId: activeYouTubeId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          mute: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: (event) => {
+            const dur = event.target.getDuration();
+            if (dur && dur > 0) {
+              const cleanDur = Number(dur.toFixed(1));
+              setVideoDuration(cleanDur);
+              setLoopStart(0);
+              setLoopEnd(Math.min(5, cleanDur));
+            }
+            event.target.mute();
+            event.target.setPlaybackRate(stateRef.current.playbackSpeed);
+            event.target.seekTo(0, true);
+            event.target.playVideo();
+            setIsPlaying(true);
+          },
+          onStateChange: (event) => {
+            const dur = event.target.getDuration();
+            if (dur && dur > 0 && Math.abs(dur - videoDuration) > 1) {
+              setVideoDuration(Number(dur.toFixed(1)));
+            }
+          }
+        }
+      });
+    };
+
+    initYtPlayer();
+    return () => clearTimeout(checkTimer);
+  }, [sourceType, activeYouTubeId]);
+
+  // Sync playbackSpeed with YouTube player when changed
+  useEffect(() => {
+    if (sourceType === 'youtube_player' && ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackRate === 'function') {
+      try {
+        ytPlayerRef.current.setPlaybackRate(playbackSpeed);
+      } catch (_) {}
+    }
+  }, [playbackSpeed, sourceType]);
+
   // Estimate GIF size in MB
   const clipDuration = Math.max(0.5, loopEnd - loopStart);
   const effectiveDuration = loopMode === 'pingpong' ? clipDuration * 2 : clipDuration;
@@ -477,130 +732,7 @@ export default function App() {
     }
   };
 
-  // Preload CORS-safe YouTube keyframes for fallback GIF generation
-  const preloadYouTubeThumbnails = (ytId) => {
-    const urls = [
-      `https://i.ytimg.com/vi/${ytId}/hq1.jpg`,
-      `https://i.ytimg.com/vi/${ytId}/hq2.jpg`,
-      `https://i.ytimg.com/vi/${ytId}/hq3.jpg`,
-      `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
-    ];
-    const loaded = [];
-    urls.forEach((u) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        loaded.push(img);
-        setYtSnapshots([...loaded]);
-      };
-      img.src = u;
-    });
-  };
-
-  // Load Official YouTube IFrame API Player when sourceType === 'youtube'
-  useEffect(() => {
-    if (sourceType !== 'youtube' || !youtubeVideoId) return;
-
-    let isCancelled = false;
-
-    const loadYouTubeApi = () =>
-      new Promise((resolve) => {
-        if (window.YT && window.YT.Player) {
-          resolve(window.YT);
-          return;
-        }
-        const existing = document.getElementById('yt-iframe-api');
-        if (!existing) {
-          const tag = document.createElement('script');
-          tag.id = 'yt-iframe-api';
-          tag.src = 'https://www.youtube.com/iframe_api';
-          document.head.appendChild(tag);
-        }
-        const prevCallback = window.onYouTubeIframeAPIReady;
-        window.onYouTubeIframeAPIReady = () => {
-          if (prevCallback) prevCallback();
-          resolve(window.YT);
-        };
-        const poll = setInterval(() => {
-          if (window.YT && window.YT.Player) {
-            clearInterval(poll);
-            resolve(window.YT);
-          }
-        }, 100);
-      });
-
-    loadYouTubeApi().then((YT) => {
-      if (isCancelled || !ytContainerRef.current) return;
-
-      if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
-        try {
-          ytPlayerRef.current.destroy();
-        } catch (_) {}
-      }
-
-      ytContainerRef.current.innerHTML = '<div id="yt-active-player" class="w-full h-full"></div>';
-
-      ytPlayerRef.current = new YT.Player('yt-active-player', {
-        videoId: youtubeVideoId,
-        playerVars: {
-          autoplay: 1,
-          controls: 1,
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          mute: 1,
-          origin: window.location.origin
-        },
-        events: {
-          onReady: (event) => {
-            if (isCancelled) return;
-            const player = event.target;
-            const dur = Number(player.getDuration() || 0);
-            if (dur > 0) {
-              const roundedDur = Number(dur.toFixed(1));
-              setVideoDuration(roundedDur);
-              setLoopStart(0);
-              setLoopEnd(Math.min(5, roundedDur));
-            }
-            player.mute();
-            player.setPlaybackRate(stateRef.current.playbackSpeed);
-            player.seekTo(0, true);
-            player.playVideo();
-          },
-          onStateChange: (event) => {
-            if (isCancelled) return;
-            const player = event.target;
-            const dur = Number(player.getDuration() || 0);
-            if (dur > 0 && Math.abs(dur - videoDuration) > 1) {
-              setVideoDuration(Number(dur.toFixed(1)));
-            }
-          }
-        }
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [sourceType, youtubeVideoId]);
-
-  // Sync YouTube Player Playback Rate & Play/Pause state
-  useEffect(() => {
-    const player = ytPlayerRef.current;
-    if (sourceType !== 'youtube' || !player) return;
-    try {
-      if (player.setPlaybackRate) {
-        player.setPlaybackRate(playbackSpeed);
-      }
-      if (isPlaying && player.playVideo) {
-        player.playVideo();
-      } else if (!isPlaying && player.pauseVideo) {
-        player.pauseVideo();
-      }
-    } catch (_) {}
-  }, [playbackSpeed, isPlaying, sourceType]);
-
-  // Handle Local File Upload
+  // Local Video File Upload
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -609,16 +741,10 @@ export default function App() {
 
   const loadLocalFile = (file) => {
     setUrlError('');
-    setStatusBanner('');
+    setIsFetchingUrl(true);
+    setStatusBanner(`Hauling "${file.name}" into the workshop...`);
     setExportedGifUrl(null);
-    setYoutubeVideoId(null);
-
-    if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
-      try {
-        ytPlayerRef.current.destroy();
-      } catch (_) {}
-      ytPlayerRef.current = null;
-    }
+    setActiveYouTubeId(null);
 
     const objectUrl = URL.createObjectURL(file);
     const video = videoRef.current;
@@ -636,13 +762,20 @@ export default function App() {
         setSourceType('file');
         setSourceTitle(file.name);
         setIsPlaying(true);
-        setStatusBanner(`Loaded video file "${file.name}" (${dur}s)`);
+        setIsFetchingUrl(false);
         video.play().catch(() => {});
+        setStatusBanner(`Loaded "${file.name}" (${dur}s) — Ready to trim & export!`);
       };
+      video.onerror = () => {
+        setIsFetchingUrl(false);
+        setUrlError('Could not decode that video file. Please try an MP4, MOV, or WebM file.');
+      };
+    } else {
+      setIsFetchingUrl(false);
     }
   };
 
-  // Load Social Link or Direct MP4
+  // Resolve social video links
   const handleLoadSocialUrl = async (e) => {
     if (e) e.preventDefault();
     const rawUrl = socialUrlInput.trim();
@@ -653,14 +786,14 @@ export default function App() {
 
     setIsFetchingUrl(true);
     setUrlError('');
-    setStatusBanner('Elves are loading your video...');
+    setStatusBanner('Elves are fetching your video clip...');
     setExportedGifUrl(null);
 
     try {
       const ytId = parseYouTubeVideoId(rawUrl);
-      let resolvedTitle = ytId ? `YouTube Video (${ytId})` : 'Loaded Video Clip';
+      let resolvedTitle = ytId ? `YouTube Video (${ytId})` : 'Social Video Clip';
 
-      // Fetch real video title via oEmbed
+      // Fetch real title via oEmbed
       try {
         const oembedRes = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(rawUrl)}`);
         if (oembedRes.ok) {
@@ -669,116 +802,117 @@ export default function App() {
         }
       } catch (_) {}
 
-      // 1. Try our Cloudflare Pages Function (/api/stream?url=...) for direct CORS MP4 stream
+      // 1. Direct MP4 / WebM URL
+      if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(rawUrl)) {
+        try {
+          await attachVideoStreamUrl(`/api/stream?proxy=${encodeURIComponent(rawUrl)}`, resolvedTitle);
+        } catch (_) {
+          await attachVideoStreamUrl(rawUrl, resolvedTitle);
+        }
+        setIsFetchingUrl(false);
+        setStatusBanner(`Loaded "${resolvedTitle}"!`);
+        return;
+      }
+
+      // 2. Try our Cloudflare Pages Function (/api/stream?url=...) which extracts & proxies MP4 server-side
       try {
         const cfRes = await fetch(`/api/stream?url=${encodeURIComponent(rawUrl)}`);
         if (cfRes.ok) {
           const data = await cfRes.json();
           if (data.streamUrl) {
-            const loadedOk = await tryAttachDirectStream(data.streamUrl, data.title || resolvedTitle, data.duration);
-            if (loadedOk) {
-              setIsFetchingUrl(false);
-              setStatusBanner(`Loaded "${data.title || resolvedTitle}"!`);
-              return;
-            }
+            await attachVideoStreamUrl(data.streamUrl, data.title || resolvedTitle);
+            setIsFetchingUrl(false);
+            setStatusBanner(`Loaded MP4 stream for "${data.title || resolvedTitle}"!`);
+            return;
           }
         }
       } catch (_) {}
 
-      // 2. If direct .mp4/.webm link, try loading directly
-      if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(rawUrl)) {
-        const loadedOk = await tryAttachDirectStream(rawUrl, resolvedTitle);
-        if (loadedOk) {
-          setIsFetchingUrl(false);
-          setStatusBanner(`Loaded direct video stream!`);
-          return;
-        }
-      }
-
-      // 3. If it's a YouTube URL, activate the Real Live YouTube Player Stage!
-      // It loads the actual video on your live gifworkshop.pages.dev site, reads the real clip duration, and loops between Loop Start & Loop End!
+      // 3. If it's a YouTube URL and raw MP4 extraction was blocked by YouTube,
+      // load the real interactive YouTube Player directly in the preview stage!
       if (ytId) {
-        preloadYouTubeThumbnails(ytId);
-        setYoutubeVideoId(ytId);
         setSourceTitle(resolvedTitle);
-        setSourceType('youtube');
+        setActiveYouTubeId(ytId);
+        setSourceType('youtube_player');
         setLoopStart(0);
         setLoopEnd(5);
-        setIsPlaying(true);
-        setStatusBanner(`Loaded "${resolvedTitle}"! Adjust Loop Start & End below to trim your clip.`);
+        playheadRef.current = 0;
         setIsFetchingUrl(false);
+        setStatusBanner(`Loaded "${resolvedTitle}"! Adjust Loop Start & End below to trim your clip.`);
         return;
       }
 
       setUrlError(
-        'Could not resolve a direct stream from that link. Try a YouTube link, direct .mp4 URL, or upload the video file from your device.'
+        'Could not extract a direct video stream from that link. Please paste a YouTube link, direct .mp4 URL, or upload the video file from your device.'
       );
     } catch (err) {
-      setUrlError('Could not load that video link. Please try uploading the video file (.MP4/.MOV) directly.');
+      setUrlError('Could not load that video link. Try uploading the video file (.MP4/.MOV) directly!');
     } finally {
       setIsFetchingUrl(false);
     }
   };
 
-  const tryAttachDirectStream = (streamUrl, title, fallbackDur) => {
-    return new Promise((resolve) => {
+  const attachVideoStreamUrl = (streamUrl, title) => {
+    return new Promise((resolve, reject) => {
       const video = videoRef.current;
-      if (!video) return resolve(false);
+      if (!video) return reject(new Error('No video element'));
 
-      const timeout = setTimeout(() => {
+      video.crossOrigin = 'anonymous';
+      video.src = streamUrl;
+      video.load();
+
+      const timeoutId = setTimeout(() => {
         cleanup();
-        resolve(false);
-      }, 6500);
+        reject(new Error('Stream load timed out'));
+      }, 9000);
 
       const onLoaded = () => {
         cleanup();
-        const rawDur = video.duration && isFinite(video.duration) ? video.duration : (fallbackDur || 15);
-        const dur = Math.max(1, Number(rawDur.toFixed(1)));
-        setYoutubeVideoId(null);
+        const dur = Math.max(1, Number((video.duration || 15).toFixed(1)));
         setVideoDuration(dur);
         setLoopStart(0);
         setLoopEnd(Math.min(5, dur));
         playheadRef.current = 0;
         video.currentTime = 0;
+        setActiveYouTubeId(null);
         setSourceType('file');
         setSourceTitle(title);
         setIsPlaying(true);
         video.play().catch(() => {});
-        resolve(true);
+        resolve();
       };
 
       const onError = () => {
         cleanup();
-        resolve(false);
+        reject(new Error('Stream failed to load'));
       };
 
       const cleanup = () => {
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
         video.removeEventListener('loadedmetadata', onLoaded);
         video.removeEventListener('error', onError);
       };
 
-      video.crossOrigin = 'anonymous';
-      video.src = streamUrl;
-      video.load();
       video.addEventListener('loadedmetadata', onLoaded);
       video.addEventListener('error', onError);
     });
   };
 
-  // Immediate reaction when user drags Loop Start or Loop End
+  // Immediate reaction when user adjusts Loop Start or Loop End sliders
   const handleLoopStartChange = (newStartVal) => {
     const clampedStart = Math.max(0, Math.min(newStartVal, loopEnd - 0.5));
     setLoopStart(clampedStart);
     playheadRef.current = clampedStart;
     setDisplayTime(clampedStart);
 
-    if (sourceType === 'file' && videoRef.current) {
+    if (stateRef.current.sourceType === 'file' && videoRef.current) {
       videoRef.current.currentTime = clampedStart;
-    } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
-      try {
-        ytPlayerRef.current.seekTo(clampedStart, true);
-      } catch (_) {}
+    } else if (
+      stateRef.current.sourceType === 'youtube_player' &&
+      ytPlayerRef.current &&
+      typeof ytPlayerRef.current.seekTo === 'function'
+    ) {
+      ytPlayerRef.current.seekTo(clampedStart, true);
     }
   };
 
@@ -788,12 +922,14 @@ export default function App() {
     playheadRef.current = clampedEnd;
     setDisplayTime(clampedEnd);
 
-    if (sourceType === 'file' && videoRef.current) {
-      videoRef.current.currentTime = clampedEnd;
-    } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
-      try {
-        ytPlayerRef.current.seekTo(Math.max(loopStart, clampedEnd - 0.3), true);
-      } catch (_) {}
+    if (stateRef.current.sourceType === 'file' && videoRef.current) {
+      videoRef.current.currentTime = Math.max(loopStart, clampedEnd - 0.8);
+    } else if (
+      stateRef.current.sourceType === 'youtube_player' &&
+      ytPlayerRef.current &&
+      typeof ytPlayerRef.current.seekTo === 'function'
+    ) {
+      ytPlayerRef.current.seekTo(Math.max(loopStart, clampedEnd - 0.8), true);
     }
   };
 
@@ -826,8 +962,8 @@ export default function App() {
     ctx.restore();
   };
 
-  // Render frame onto targetCanvas
-  const renderFrameToCanvas = (targetCanvas, timestampSec, customVideoEl = null) => {
+  // Composite a single frame at the current timestamp
+  const renderFrameToCanvas = (targetCanvas) => {
     if (!targetCanvas) return;
     const ctx = targetCanvas.getContext('2d');
     const width = targetCanvas.width;
@@ -836,8 +972,8 @@ export default function App() {
 
     ctx.clearRect(0, 0, width, height);
 
-    const video = customVideoEl || videoRef.current;
-    if ((customVideoEl || st.sourceType === 'file') && video && video.readyState >= 2) {
+    const video = videoRef.current;
+    if (st.sourceType === 'file' && video && video.readyState >= 2) {
       const vw = video.videoWidth || 640;
       const vh = video.videoHeight || 360;
       const scale = Math.min(width / vw, height / vh);
@@ -849,16 +985,6 @@ export default function App() {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(video, offsetX, offsetY, drawW, drawH);
-    } else if (ytSnapshots.length > 0) {
-      // Draw actual YouTube video storyboard frames without any fake sun or GIF box
-      const progress = Math.max(0, (timestampSec - st.loopStart) / Math.max(0.5, st.loopEnd - st.loopStart));
-      const frameIdx = Math.floor(progress * ytSnapshots.length) % ytSnapshots.length;
-      const img = ytSnapshots[frameIdx];
-      if (img) {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-      }
     }
 
     drawMemeTextOverlay(
@@ -872,7 +998,7 @@ export default function App() {
     );
   };
 
-  // 60FPS Animation Loop for Both Local/Direct Video AND Live YouTube IFrame Player
+  // 60FPS RequestAnimationFrame Loop for both HTML5 <video> and YouTube Live Player trim loop
   useEffect(() => {
     let rafId;
     let lastUiUpdate = 0;
@@ -886,6 +1012,7 @@ export default function App() {
       if (st.sourceType === 'file' && video && video.readyState >= 2) {
         if (st.isPlaying) {
           video.playbackRate = st.playbackSpeed;
+
           if (st.loopMode === 'forward') {
             if (video.paused) video.play().catch(() => {});
             if (video.currentTime >= st.loopEnd || video.currentTime < st.loopStart) {
@@ -916,22 +1043,19 @@ export default function App() {
         } else if (!video.paused) {
           video.pause();
         }
-        renderFrameToCanvas(canvasRef.current, playheadRef.current);
-      } else if (st.sourceType === 'youtube' && ytPlayerRef.current) {
-        // Synchronize real YouTube IFrame Player with Loop Start & Loop End
+        renderFrameToCanvas(canvasRef.current);
+      } else if (
+        st.sourceType === 'youtube_player' &&
+        ytPlayerRef.current &&
+        typeof ytPlayerRef.current.getCurrentTime === 'function'
+      ) {
         try {
-          const yt = ytPlayerRef.current;
-          if (yt.getCurrentTime) {
-            const cur = Number(yt.getCurrentTime() || 0);
-            const dur = Number(yt.getDuration() || 0);
-            if (dur > 0 && Math.abs(dur - videoDuration) > 1) {
-              setVideoDuration(Number(dur.toFixed(1)));
-            }
-            if (st.isPlaying && (cur >= st.loopEnd || cur < st.loopStart - 0.25)) {
-              yt.seekTo(st.loopStart, true);
-              playheadRef.current = st.loopStart;
-            } else {
-              playheadRef.current = cur;
+          const ytTime = ytPlayerRef.current.getCurrentTime() || 0;
+          playheadRef.current = ytTime;
+          if (st.isPlaying) {
+            if (ytTime >= st.loopEnd || ytTime < st.loopStart - 0.25) {
+              ytPlayerRef.current.seekTo(st.loopStart, true);
+              ytPlayerRef.current.playVideo();
             }
           }
         } catch (_) {}
@@ -947,105 +1071,76 @@ export default function App() {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [videoDuration]);
+  }, []);
 
-  // Live Tab Capture for YouTube IFrame Mode (Captures real playing video frames)
-  const handleCaptureLiveYouTubeGif = async () => {
-    if (isEncoding) return;
-    setUrlError('');
+  // Toggle Play/Pause for either HTML5 Video or YouTube Player
+  const handleTogglePlay = () => {
+    const nextPlay = !isPlaying;
+    setIsPlaying(nextPlay);
+    if (sourceType === 'youtube_player' && ytPlayerRef.current) {
+      try {
+        if (nextPlay) ytPlayerRef.current.playVideo();
+        else ytPlayerRef.current.pauseVideo();
+      } catch (_) {}
+    }
+  };
 
+  // Capture live YouTube player tab frames into native HTML5 video buffer for direct GIF encoding
+  const handleCaptureTabVideoForGif = async () => {
     try {
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', frameRate: exportFps },
+      setUrlError('');
+      setStatusBanner('Select "This Tab" and click Share so the elves can record your exact trimmed YouTube loop into a GIF...');
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', frameRate: 30 },
         audio: false,
         preferCurrentTab: true
       });
 
-      setIsEncoding(true);
-      setEncodeProgress(0);
-      setExportedGifUrl(null);
+      const track = stream.getVideoTracks()[0];
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      const chunks = [];
 
-      const tempVideo = document.createElement('video');
-      tempVideo.srcObject = displayStream;
-      tempVideo.muted = true;
-      await tempVideo.play();
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
 
-      // Crop exactly to the YouTube stage container on screen
-      const stageEl = ytContainerRef.current;
-      const rect = stageEl ? stageEl.getBoundingClientRect() : null;
-      const dpr = window.devicePixelRatio || 1;
+      recorder.onstop = () => {
+        track.stop();
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const file = new File([blob], `${sourceTitle}.webm`, { type: 'video/webm' });
+        loadLocalFile(file);
+      };
 
-      const outW = exportWidth;
-      const outH = Math.round((exportWidth * 9) / 16);
-      const offscreen = document.createElement('canvas');
-      offscreen.width = outW;
-      offscreen.height = outH;
-      const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
-
-      const frameDelayMs = Math.round(1000 / exportFps);
-      const encoder = new SimpleGIF89aEncoder(outW, outH, frameDelayMs);
-
-      // Seek YouTube player to loopStart and start playing
-      if (ytPlayerRef.current?.seekTo) {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
         ytPlayerRef.current.seekTo(loopStart, true);
         ytPlayerRef.current.playVideo();
       }
 
-      const captureCount = Math.max(8, Math.min(45, Math.round(((loopEnd - loopStart) / playbackSpeed) * exportFps)));
-      const capturedBitmaps = [];
+      recorder.start();
+      const recordDurationMs = Math.min(8000, Math.max(1500, ((loopEnd - loopStart) / playbackSpeed) * 1000));
+      setStatusBanner(`Recording your ${((loopEnd - loopStart) / playbackSpeed).toFixed(1)}s clip...`);
 
-      for (let i = 0; i < captureCount; i++) {
-        offCtx.fillStyle = '#000000';
-        offCtx.fillRect(0, 0, outW, outH);
-
-        if (rect && tempVideo.videoWidth > 0) {
-          const scaleX = tempVideo.videoWidth / window.innerWidth;
-          const scaleY = tempVideo.videoHeight / window.innerHeight;
-          const sx = Math.max(0, rect.left * scaleX);
-          const sy = Math.max(0, rect.top * scaleY);
-          const sw = Math.min(tempVideo.videoWidth - sx, rect.width * scaleX);
-          const sh = Math.min(tempVideo.videoHeight - sy, rect.height * scaleY);
-          offCtx.drawImage(tempVideo, sx, sy, sw, sh, 0, 0, outW, outH);
-        } else {
-          offCtx.drawImage(tempVideo, 0, 0, outW, outH);
-        }
-
-        drawMemeTextOverlay(offCtx, outW, outH, topText, bottomText, fontSize, textColor);
-        const frameData = offCtx.getImageData(0, 0, outW, outH).data;
-        capturedBitmaps.push(new Uint8ClampedArray(frameData));
-
-        setEncodeProgress(Math.round(((i + 1) / captureCount) * 85));
-        await new Promise((r) => setTimeout(r, frameDelayMs));
-      }
-
-      displayStream.getTracks().forEach((t) => t.stop());
-
-      let finalFrames = [...capturedBitmaps];
-      if (loopMode === 'reverse') {
-        finalFrames.reverse();
-      } else if (loopMode === 'pingpong' && capturedBitmaps.length > 2) {
-        finalFrames = [...capturedBitmaps, ...capturedBitmaps.slice(1, -1).reverse()];
-      }
-
-      finalFrames.forEach((rgba) => encoder.addFrame(rgba));
-      setEncodeProgress(100);
-
-      const gifBlob = encoder.finish();
-      const gifUrl = URL.createObjectURL(gifBlob);
-      setExportedGifUrl(gifUrl);
-      setExportedGifSizeMB((gifBlob.size / (1024 * 1024)).toFixed(2));
+      setTimeout(() => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      }, recordDurationMs);
     } catch (err) {
-      // If user cancels screen share dialog, fallback gracefully to YouTube keyframe GIF synthesis
-      await handleDirectCanvasGifExport();
-    } finally {
-      setIsEncoding(false);
+      setUrlError('Tab capture was cancelled. You can also upload an MP4/MOV video file directly.');
     }
   };
 
-  // Direct Canvas Multi-Frame GIF89a Export
-  const handleDirectCanvasGifExport = async () => {
+  // Real Multi-Frame Animated GIF89a Export
+  const handleCreateAnimatedGif = async () => {
+    if (isEncoding) return;
+
     if (sourceType === 'empty') {
-      setUrlError('Please load a video link or upload a video file in Step 1 first!');
+      setUrlError('Please upload a video file or load a video link in Step 1 first!');
+      return;
+    }
+
+    // If currently viewing embedded YouTube player (because direct MP4 stream was blocked by YouTube),
+    // trigger 1-click tab clip capture or encode from loaded video
+    if (sourceType === 'youtube_player') {
+      await handleCaptureTabVideoForGif();
       return;
     }
 
@@ -1087,7 +1182,7 @@ export default function App() {
 
       const seekVideoTo = (targetTime) =>
         new Promise((resolve) => {
-          if (sourceType !== 'file' || !video || video.readyState < 2) {
+          if (!video || video.readyState < 2) {
             resolve();
             return;
           }
@@ -1106,7 +1201,7 @@ export default function App() {
       for (let idx = 0; idx < finalSequence.length; idx++) {
         const t = finalSequence[idx];
         await seekVideoTo(t);
-        renderFrameToCanvas(offscreen, t);
+        renderFrameToCanvas(offscreen);
         const imgData = offCtx.getImageData(0, 0, outW, outH).data;
         encoder.addFrame(imgData);
 
@@ -1122,7 +1217,7 @@ export default function App() {
       setExportedGifSizeMB(sizeMB);
       setIsPlaying(wasPlaying);
     } catch (err) {
-      setUrlError('Error encoding GIF. Please try a shorter loop.');
+      setUrlError('Error encoding GIF. Please try uploading the MP4 file directly.');
     } finally {
       setIsEncoding(false);
     }
@@ -1130,8 +1225,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-emerald-950 text-amber-50 flex flex-col">
-      {/* Hidden HTML5 Video Element for Direct MP4 Frame Decoding */}
+      {/* Hidden HTML5 Video Element for 60fps Frame Decoding */}
       <video ref={videoRef} className="hidden" playsInline muted crossOrigin="anonymous" />
+
+      {/* Fun Full-Screen Elf Overlay During Video Loading */}
+      <GrumpyComputerElfOverlay isVisible={isFetchingUrl} statusText={statusBanner} />
 
       {/* Top Workshop Header */}
       <header className="sticky top-0 z-30 bg-emerald-950/95 backdrop-blur-md border-b-2 border-amber-500/30 shadow-lg">
@@ -1176,7 +1274,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Social Link Input Form */}
+          {/* Social Link Input Form (Blank by Default) */}
           <form onSubmit={handleLoadSocialUrl} className="flex flex-col sm:flex-row gap-2.5 mb-3">
             <div className="relative flex-1">
               <Link2 className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -1203,7 +1301,7 @@ export default function App() {
               className="px-5 py-2.5 rounded-xl font-bold text-sm bg-amber-400 hover:bg-amber-300 text-emerald-950 shadow-md transition flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
             >
               <Wand2 className="w-4 h-4" />
-              {isFetchingUrl ? 'Loading...' : 'Load Link'}
+              {isFetchingUrl ? 'Fetching Video...' : 'Load Link'}
             </button>
           </form>
 
@@ -1234,17 +1332,17 @@ export default function App() {
           )}
         </section>
 
-        {/* LIVE VIDEO & MEME PREVIEW STAGE (NO FAKE SUN OR BOUNCING GIF BOX!) */}
+        {/* LIVE VIDEO & MEME PREVIEW STAGE */}
         <section className="bg-emerald-900/70 border-2 border-amber-400/50 rounded-2xl p-3 sm:p-4 shadow-2xl">
           <div className="flex items-center justify-between mb-2 px-1">
             <div className="flex items-center gap-2 truncate">
               <span
                 className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                  sourceType === 'empty' ? 'bg-amber-400/50' : 'bg-emerald-400 animate-pulse'
+                  sourceType === 'empty' ? 'bg-amber-400/60' : 'bg-emerald-400 animate-pulse'
                 }`}
               />
               <span className="text-xs font-bold text-amber-200 truncate">
-                {sourceType === 'empty' ? 'Video Stage: Waiting for Video' : `Live Preview: ${sourceTitle}`}
+                {sourceType === 'empty' ? 'Waiting for Video...' : `Live Preview: ${sourceTitle}`}
               </span>
             </div>
             <span className="text-[11px] font-mono text-emerald-300 shrink-0">
@@ -1253,52 +1351,60 @@ export default function App() {
             </span>
           </div>
 
-          {/* 16:9 Stage: Empty Waiting Card OR Real HTML5 Canvas OR Live YouTube Player */}
+          {/* 16:9 Live Preview Stage */}
           <div className="relative w-full aspect-video bg-emerald-950 rounded-xl overflow-hidden border border-emerald-800 shadow-inner flex items-center justify-center">
+            {/* STATE A: Empty State (No confusing fake sun/GIF box!) */}
             {sourceType === 'empty' && (
               <div className="flex flex-col items-center justify-center text-center p-6 max-w-md">
-                <AnimatedLogoElf isWorking={false} />
+                <AnimatedLogoElf isWorking={isFetchingUrl} />
                 <h3 className="mt-3 text-base sm:text-lg font-bold text-amber-200">
                   Ready to Forge Your Animated GIF!
                 </h3>
                 <p className="mt-1 text-xs text-emerald-300/90 leading-relaxed">
-                  Paste a YouTube or video URL above and click <strong className="text-amber-300">Load Link</strong>, or upload an MP4/MOV video file from your computer or phone to start trimming.
+                  Paste a YouTube / social video link or upload an MP4, MOV, or WebM video file in Step 1 above to start trimming and adding meme captions.
                 </p>
               </div>
             )}
 
-            {sourceType === 'file' && (
-              <canvas
-                ref={canvasRef}
-                width={640}
-                height={360}
-                className="w-full h-full object-contain bg-black"
-              />
-            )}
+            {/* STATE B: Native HTML5 Video Canvas (for uploaded files & resolved MP4 streams) */}
+            <canvas
+              ref={canvasRef}
+              width={640}
+              height={360}
+              className={`w-full h-full object-contain ${sourceType === 'file' ? 'block' : 'hidden'}`}
+            />
 
-            {sourceType === 'youtube' && (
-              <div className="relative w-full h-full bg-black">
-                <div ref={ytContainerRef} className="w-full h-full" />
-                {/* Live Impact Meme Text Overlay rendered directly on top of the playing YouTube video */}
+            {/* STATE C: Live Synchronized YouTube Player + Live Meme Caption Overlay */}
+            {sourceType === 'youtube_player' && (
+              <div ref={ytContainerRef} className="relative w-full h-full bg-black">
+                <div id="yt-live-player" className="w-full h-full pointer-events-none" />
+
+                {/* Live Meme Text Overlay on top of the playing YouTube clip */}
                 {(topText || bottomText) && (
-                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 sm:p-4 select-none">
+                  <div className="absolute inset-0 pointer-events-none flex flex-col justify-between items-center p-3 sm:p-5 select-none">
                     <div
-                      className="text-center font-black meme-stroke break-words leading-tight"
+                      className="w-full text-center font-black uppercase tracking-wide break-words"
                       style={{
+                        fontFamily: 'Impact, "Arial Black", sans-serif',
+                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`,
                         color: textColor,
-                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`
+                        WebkitTextStroke: '2px #000000',
+                        textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000'
                       }}
                     >
-                      {topText.toUpperCase()}
+                      {topText}
                     </div>
                     <div
-                      className="text-center font-black meme-stroke break-words leading-tight"
+                      className="w-full text-center font-black uppercase tracking-wide break-words"
                       style={{
+                        fontFamily: 'Impact, "Arial Black", sans-serif',
+                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`,
                         color: textColor,
-                        fontSize: `${Math.max(18, Math.round(fontSize * 0.85))}px`
+                        WebkitTextStroke: '2px #000000',
+                        textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000'
                       }}
                     >
-                      {bottomText.toUpperCase()}
+                      {bottomText}
                     </div>
                   </div>
                 )}
@@ -1312,7 +1418,7 @@ export default function App() {
               <button
                 type="button"
                 disabled={sourceType === 'empty'}
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={handleTogglePlay}
                 className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs flex items-center gap-1.5 shadow disabled:opacity-40"
               >
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -1324,9 +1430,13 @@ export default function App() {
                 onClick={() => {
                   playheadRef.current = loopStart;
                   setDisplayTime(loopStart);
-                  if (sourceType === 'file' && videoRef.current) {
+                  if (videoRef.current && sourceType === 'file') {
                     videoRef.current.currentTime = loopStart;
-                  } else if (sourceType === 'youtube' && ytPlayerRef.current?.seekTo) {
+                  } else if (
+                    sourceType === 'youtube_player' &&
+                    ytPlayerRef.current &&
+                    typeof ytPlayerRef.current.seekTo === 'function'
+                  ) {
                     ytPlayerRef.current.seekTo(loopStart, true);
                   }
                 }}
@@ -1338,7 +1448,7 @@ export default function App() {
             </div>
 
             <div className="px-3 py-1 rounded-lg bg-emerald-950/90 border border-amber-500/30 text-xs font-mono text-amber-300">
-              {displayTime.toFixed(2)}s / Loop {loopStart.toFixed(1)}s–{loopEnd.toFixed(1)}s (Total {videoDuration.toFixed(1)}s)
+              {displayTime.toFixed(2)}s / Loop {loopStart.toFixed(1)}s–{loopEnd.toFixed(1)}s (Total: {videoDuration.toFixed(1)}s)
             </div>
           </div>
 
@@ -1466,10 +1576,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* MIDDLE LEADERBOARD AD */}
-        <AdSenseLeaderboard positionLabel="Middle Banner" />
-
-        {/* STEP 3: MEME TEXT OVERLAY */}
+        {/* STEP 3: MEME TEXT OVERLAY (DEFAULTS TO BLANK) */}
         <section className="bg-emerald-900/50 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             <PainterElfIllustration isTyping={isTypingText} />
@@ -1616,43 +1723,20 @@ export default function App() {
             )}
           </div>
 
-          {/* Export Buttons */}
-          {sourceType === 'youtube' ? (
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={handleCaptureLiveYouTubeGif}
-                disabled={isEncoding}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-60"
-              >
-                <Monitor className="w-5 h-5" />
-                {isEncoding
-                  ? `Elves are Recording & Forging GIF... (${encodeProgress}%)`
-                  : 'Record Live Video Loop as Animated GIF'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDirectCanvasGifExport}
-                disabled={isEncoding}
-                className="w-full py-2.5 px-4 rounded-xl bg-emerald-950 hover:bg-emerald-900 text-amber-200 border border-emerald-700 font-bold text-xs transition flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                Instant Storyboard GIF Export (No Screen Permission Needed)
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDirectCanvasGifExport}
-              disabled={isEncoding || sourceType === 'empty'}
-              className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-50"
-            >
-              <Sparkles className="w-5 h-5" />
-              {isEncoding
-                ? `Elves are Forging Animated GIF... (${encodeProgress}%)`
-                : 'Create & Download Animated GIF'}
-            </button>
-          )}
+          {/* Big Forge Animated GIF Button */}
+          <button
+            type="button"
+            onClick={handleCreateAnimatedGif}
+            disabled={isEncoding}
+            className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-emerald-950 font-extrabold text-base shadow-xl transition flex items-center justify-center gap-2.5 disabled:opacity-60"
+          >
+            <Sparkles className="w-5 h-5" />
+            {isEncoding
+              ? `Elves are Forging Animated GIF... (${encodeProgress}%)`
+              : sourceType === 'youtube_player'
+              ? 'Capture Trimmed YouTube Loop & Forge GIF'
+              : 'Create & Download Animated GIF'}
+          </button>
 
           {/* Export Result Card */}
           {exportedGifUrl && (

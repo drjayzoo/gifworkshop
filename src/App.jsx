@@ -587,6 +587,7 @@ export default function App() {
   const [fontSize, setFontSize] = useState(32);
   const [textColor, setTextColor] = useState('#FFFFFF');
   const [isTypingText, setIsTypingText] = useState(false);
+  const [activeEditorTab, setActiveEditorTab] = useState('trim'); // 'trim' | 'meme'
 
   // Export & Preset State
   const [selectedPreset, setSelectedPreset] = useState(PLATFORM_PRESETS[0]);
@@ -1470,193 +1471,217 @@ export default function App() {
           </div>
         </section>
 
-        {/* STEP 2: TRIM LOOP & SPEED CONTROLS */}
-        <section className="bg-emerald-900/50 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl">
-          <div className="flex items-center gap-3 mb-4">
-            <CrankElfIllustration speed={playbackSpeed} reverse={loopMode === 'reverse'} />
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Step 2 • Trim & Speed
-              </span>
-              <h2 className="text-lg font-bold text-amber-100">
-                Select Loop Window & Speed
-              </h2>
+        {/* UNIFIED TABBED STUDIO DECK (STEP 2: TRIM & SPEED + STEP 3: MEME CAPTIONS) */}
+        <section className="bg-emerald-900/50 border-2 border-amber-500/30 rounded-2xl p-3.5 sm:p-4 shadow-xl">
+          {/* Tab Switcher Bar */}
+          <div className="flex items-center justify-between gap-2 border-b border-emerald-800/80 pb-3 mb-3.5">
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <button
+                type="button"
+                onClick={() => setActiveEditorTab('trim')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all ${
+                  activeEditorTab === 'trim'
+                    ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow-md scale-[1.01]'
+                    : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
+                }`}
+              >
+                <FastForward className="w-4 h-4 shrink-0" />
+                <span>Step 2 • Trim & Speed</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveEditorTab('meme')}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all ${
+                  activeEditorTab === 'meme'
+                    ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow-md scale-[1.01]'
+                    : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
+                }`}
+              >
+                <Type className="w-4 h-4 shrink-0" />
+                <span>Step 3 • Meme Text</span>
+                {(topText || bottomText) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                )}
+              </button>
+            </div>
+
+            {/* Dynamic Elf Helper Icon */}
+            <div className="hidden sm:flex items-center pl-1">
+              {activeEditorTab === 'trim' ? (
+                <CrankElfIllustration speed={playbackSpeed} reverse={loopMode === 'reverse'} />
+              ) : (
+                <PainterElfIllustration isTyping={isTypingText} />
+              )}
             </div>
           </div>
 
-          {/* Loop Start & Loop End Sliders */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div className="bg-emerald-950/70 p-3.5 rounded-xl border border-emerald-800">
-              <div className="flex justify-between text-xs font-bold mb-1.5">
-                <span className="text-emerald-300">Loop Start (IN)</span>
-                <span className="font-mono text-amber-300">{loopStart.toFixed(2)}s</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0.5, videoDuration - 0.5)}
-                step={0.1}
-                value={loopStart}
-                onChange={(e) => handleLoopStartChange(parseFloat(e.target.value))}
-                className="w-full accent-amber-400 cursor-pointer"
-              />
-            </div>
+          {/* TAB 1 CONTENT: TRIM LOOP & SPEED */}
+          {activeEditorTab === 'trim' && (
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-emerald-950/70 p-3 rounded-xl border border-emerald-800">
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-emerald-300">Loop Start (IN)</span>
+                    <span className="font-mono text-amber-300">{loopStart.toFixed(2)}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0.5, videoDuration - 0.5)}
+                    step={0.1}
+                    value={loopStart}
+                    onChange={(e) => handleLoopStartChange(parseFloat(e.target.value))}
+                    className="w-full accent-amber-400 cursor-pointer"
+                  />
+                </div>
 
-            <div className="bg-emerald-950/70 p-3.5 rounded-xl border border-emerald-800">
-              <div className="flex justify-between text-xs font-bold mb-1.5">
-                <span className="text-emerald-300">Loop End (OUT)</span>
-                <span className="font-mono text-amber-300">{loopEnd.toFixed(2)}s</span>
+                <div className="bg-emerald-950/70 p-3 rounded-xl border border-emerald-800">
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-emerald-300">Loop End (OUT)</span>
+                    <span className="font-mono text-amber-300">{loopEnd.toFixed(2)}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={videoDuration}
+                    step={0.1}
+                    value={loopEnd}
+                    onChange={(e) => handleLoopEndChange(parseFloat(e.target.value))}
+                    className="w-full accent-amber-400 cursor-pointer"
+                  />
+                </div>
               </div>
-              <input
-                type="range"
-                min={0.5}
-                max={videoDuration}
-                step={0.1}
-                value={loopEnd}
-                onChange={(e) => handleLoopEndChange(parseFloat(e.target.value))}
-                className="w-full accent-amber-400 cursor-pointer"
-              />
-            </div>
-          </div>
 
-          {/* Loop Direction & Speed Multipliers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-emerald-300 mb-1.5">
-                Loop Direction
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'forward', label: 'Normal', icon: FastForward },
-                  { id: 'pingpong', label: 'Boomerang', icon: Repeat },
-                  { id: 'reverse', label: 'Reverse', icon: Rewind }
-                ].map((mode) => {
-                  const Icon = mode.icon;
-                  const active = loopMode === mode.id;
-                  return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">
+                    Loop Direction
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'forward', label: 'Normal', icon: FastForward },
+                      { id: 'pingpong', label: 'Boomerang', icon: Repeat },
+                      { id: 'reverse', label: 'Reverse', icon: Rewind }
+                    ].map((mode) => {
+                      const Icon = mode.icon;
+                      const active = loopMode === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => setLoopMode(mode.id)}
+                          className={`py-2 px-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 transition ${
+                            active
+                              ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow'
+                              : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {mode.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">
+                    Playback Speed
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[0.5, 1, 1.5, 2].map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => setPlaybackSpeed(spd)}
+                        className={`py-2 rounded-xl text-xs font-bold border transition ${
+                          playbackSpeed === spd
+                            ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow'
+                            : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2 CONTENT: MEME TEXT OVERLAY */}
+          {activeEditorTab === 'meme' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">
+                    Top Caption
+                  </label>
+                  <input
+                    type="text"
+                    value={topText}
+                    onChange={(e) => {
+                      setTopText(e.target.value);
+                      setIsTypingText(true);
+                      clearTimeout(typingTimerRef.current);
+                      typingTimerRef.current = setTimeout(() => setIsTypingText(false), 600);
+                    }}
+                    placeholder="Leave blank or type top text..."
+                    className="w-full px-3.5 py-2 rounded-xl bg-emerald-950 border border-emerald-700 text-amber-100 placeholder-emerald-500 text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-emerald-300 mb-1">
+                    Bottom Caption
+                  </label>
+                  <input
+                    type="text"
+                    value={bottomText}
+                    onChange={(e) => {
+                      setBottomText(e.target.value);
+                      setIsTypingText(true);
+                      clearTimeout(typingTimerRef.current);
+                      typingTimerRef.current = setTimeout(() => setIsTypingText(false), 600);
+                    }}
+                    placeholder="Leave blank or type bottom text..."
+                    className="w-full px-3.5 py-2 rounded-xl bg-emerald-950 border border-emerald-700 text-amber-100 placeholder-emerald-500 text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-emerald-950/60 p-3 rounded-xl border border-emerald-800">
+                <div className="flex items-center gap-3 flex-1 min-w-[180px]">
+                  <Type className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="text-xs font-bold text-emerald-300">Text Size</span>
+                  <input
+                    type="range"
+                    min={20}
+                    max={52}
+                    value={fontSize}
+                    onChange={(e) => setFontSize(Number(e.target.value))}
+                    className="flex-1 accent-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-300">Color:</span>
+                  {['#FFFFFF', '#FBBF24', '#34D399', '#F43F5E', '#38BDF8'].map((hex) => (
                     <button
-                      key={mode.id}
+                      key={hex}
                       type="button"
-                      onClick={() => setLoopMode(mode.id)}
-                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
-                        active
-                          ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow'
-                          : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
+                      onClick={() => setTextColor(hex)}
+                      className={`w-6 h-6 rounded-full border-2 transition ${
+                        textColor === hex ? 'border-white scale-110' : 'border-transparent'
                       }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {mode.label}
-                    </button>
-                  );
-                })}
+                      style={{ backgroundColor: hex }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs font-bold text-emerald-300 mb-1.5">
-                Playback Speed
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {[0.5, 1, 1.5, 2].map((spd) => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => setPlaybackSpeed(spd)}
-                    className={`py-2 rounded-xl text-xs font-bold border transition ${
-                      playbackSpeed === spd
-                        ? 'bg-amber-400 text-emerald-950 border-amber-300 shadow'
-                        : 'bg-emerald-950/70 text-amber-100 border-emerald-800 hover:border-amber-400/50'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* STEP 3: MEME TEXT OVERLAY (DEFAULTS TO BLANK) */}
-        <section className="bg-emerald-900/50 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl">
-          <div className="flex items-center gap-3 mb-4">
-            <PainterElfIllustration isTyping={isTypingText} />
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Step 3 • Meme Captions
-              </span>
-              <h2 className="text-lg font-bold text-amber-100">
-                Add Top & Bottom Meme Text
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-bold text-emerald-300 mb-1">
-                Top Caption
-              </label>
-              <input
-                type="text"
-                value={topText}
-                onChange={(e) => {
-                  setTopText(e.target.value);
-                  setIsTypingText(true);
-                  clearTimeout(typingTimerRef.current);
-                  typingTimerRef.current = setTimeout(() => setIsTypingText(false), 600);
-                }}
-                placeholder="Leave blank or type top text..."
-                className="w-full px-3.5 py-2 rounded-xl bg-emerald-950 border border-emerald-700 text-amber-100 placeholder-emerald-500 text-sm focus:outline-none focus:border-amber-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-emerald-300 mb-1">
-                Bottom Caption
-              </label>
-              <input
-                type="text"
-                value={bottomText}
-                onChange={(e) => {
-                  setBottomText(e.target.value);
-                  setIsTypingText(true);
-                  clearTimeout(typingTimerRef.current);
-                  typingTimerRef.current = setTimeout(() => setIsTypingText(false), 600);
-                }}
-                placeholder="Leave blank or type bottom text..."
-                className="w-full px-3.5 py-2 rounded-xl bg-emerald-950 border border-emerald-700 text-amber-100 placeholder-emerald-500 text-sm focus:outline-none focus:border-amber-400"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-emerald-950/60 p-3 rounded-xl border border-emerald-800">
-            <div className="flex items-center gap-3 flex-1 min-w-[180px]">
-              <Type className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="text-xs font-bold text-emerald-300">Text Size</span>
-              <input
-                type="range"
-                min={20}
-                max={52}
-                value={fontSize}
-                onChange={(e) => setFontSize(Number(e.target.value))}
-                className="flex-1 accent-amber-400 cursor-pointer"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-emerald-300">Color:</span>
-              {['#FFFFFF', '#FBBF24', '#34D399', '#F43F5E', '#38BDF8'].map((hex) => (
-                <button
-                  key={hex}
-                  type="button"
-                  onClick={() => setTextColor(hex)}
-                  className={`w-6 h-6 rounded-full border-2 transition ${
-                    textColor === hex ? 'border-white scale-110' : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: hex }}
-                />
-              ))}
-            </div>
-          </div>
+          )}
         </section>
 
         {/* STEP 4: ONE-CLICK PLATFORM PRESETS & GIF EXPORT */}
